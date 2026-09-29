@@ -139,7 +139,18 @@ connect_claude() {
   command -v claude >/dev/null || { info "Installing Claude Code CLI"; npm install -g @anthropic-ai/claude-code; }
   info "Log in with your Claude account if you haven't (a browser opens):"
   claude auth status >/dev/null 2>&1 || claude auth login
-  hermes plugins list 2>/dev/null | grep -q claude-subscription-directsdk || hermes plugins install claude-subscription-directsdk
+  # Install the Claude subscription plugin unless it's already there. (The plugin list shortens long
+  # names, so ask for the install and treat "already exists" as success.)
+  local out
+  out=$(hermes plugins install claude-subscription-directsdk 2>&1 </dev/null) || true
+  if print -r -- "$out" | grep -qi "already exists"; then
+    ok "Claude subscription plugin already installed"
+  elif print -r -- "$out" | grep -qiE "error|failed"; then
+    print -r -- "$out" | tail -3
+    warn "Couldn't install the Claude subscription plugin. Try: hermes plugins install claude-subscription-directsdk --force"
+  else
+    ok "Claude subscription plugin installed"
+  fi
   warn "Each Claude turn uses your subscription's Agent SDK allowance (about 1.7x interactive Claude Code)."
   warn "Turn off 'extra usage' in your Claude account settings if you don't want overage charges."
 }
