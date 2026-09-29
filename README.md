@@ -72,7 +72,7 @@ The script is interactive and safe to re-run. It:
    with topics, or skip for later (`hermes/telegram_mode.sh`).
 8. Offers to scan Documents, Desktop, Downloads and cloud drives for client and project folders (names
    only) so onboarding can bring them in (`jarvis-import`). Originals are never moved or changed.
-9. Sets up desk voice: fetches the [`jarvis-voice`](../jarvis-voice) repo listed in `deps.env` if it
+9. Sets up desk voice: fetches the [`jarvis-voice`](https://github.com/JohannsenLum/jarvis-voice) repo listed in `deps.env` if it
    isn't next to this folder, then installs it. Jev key optional (blank = standard mode).
 
 Then say hi (`hermes --tui`, the Hermes app, or your Telegram bot). Jarvis runs onboarding by itself.
