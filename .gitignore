@@ -1,0 +1,23 @@
+# Secrets
+.env
+
+# Your personal second brain stays out of the template repo.
+# Put knowledge/ in its own PRIVATE git repo if you want history (recommended).
+knowledge/*
+!knowledge/SCHEMA.md
+!knowledge/_templates/
+!knowledge/inbox/
+!knowledge/raw/
+knowledge/inbox/*
+knowledge/raw/*
+!knowledge/inbox/.gitkeep
+!knowledge/raw/.gitkeep
+!knowledge/index.md
+!knowledge/log.md
+
+# Skills Jarvis teaches itself are personal too
+skills/learned/*
+!skills/learned/.gitkeep
+
+.DS_Store
+.obsidian/workspace*.json

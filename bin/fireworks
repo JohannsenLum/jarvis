@@ -1,0 +1,45 @@
+#!/bin/zsh
+# Run the vendored fireworks-tech-graph CLI with PNG and GIF support, using tools that are already
+# on this Mac: Node 22.12+ (user install or Hermes' bundled one), Hermes' bundled Chromium and ffmpeg,
+# and puppeteer-core installed in ~/.jarvis-tools/fireworks (outside the repo).
+#
+#   fireworks <command> ...        same commands as scripts/fireworks.py (render, check, export-html, animate…)
+#   fireworks export-png in.svg out.png [--width N]
+#                                  uses CairoSVG/rsvg-convert if present, otherwise renders through Chromium
+set -e
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+SKILL="$ROOT/skills/vendor/fireworks-tech-graph"
+TOOLS="$HOME/.hermes/tools"
+# Homebrew tools (ffmpeg/ffprobe, rsvg-convert) even when launched from a service without a login shell.
+[[ -d /opt/homebrew/bin ]] && export PATH="/opt/homebrew/bin:$PATH"
+
+# Node: the user's if it's new enough, else Hermes' bundled one.
+node_ok() { command -v node >/dev/null && node -e 'const [a,b]=process.versions.node.split(".").map(Number); process.exit(a>22||(a==22&&b>=12)?0:1)'; }
+if ! node_ok; then
+  hermes_node=$(ls -d "$TOOLS"/node-*/bin 2>/dev/null | tail -1)
+  [[ -n $hermes_node ]] && export PATH="$hermes_node:$PATH"
+fi
+ffmpeg_dir=$(ls -d "$TOOLS"/ffmpeg-* 2>/dev/null | tail -1)
+command -v ffmpeg >/dev/null || { [[ -n $ffmpeg_dir ]] && export PATH="$ffmpeg_dir:$PATH"; }
+
+chrome_app=$(ls -d "$TOOLS"/chromium-*/chrome-mac-arm64/"Google Chrome for Testing.app" 2>/dev/null | tail -1)
+[[ -n $chrome_app && -z $FIREWORKS_CHROME_PATH ]] && export FIREWORKS_CHROME_PATH="$chrome_app/Contents/MacOS/Google Chrome for Testing"
+puppeteer="$HOME/.jarvis-tools/fireworks/node_modules/puppeteer-core"
+[[ -d $puppeteer && -z $FIREWORKS_PUPPETEER_PATH ]] && export FIREWORKS_PUPPETEER_PATH="$puppeteer"
+# Node resolves modules next to the script, so let it also look in the tools folder.
+export NODE_PATH="$HOME/.jarvis-tools/fireworks/node_modules${NODE_PATH:+:$NODE_PATH}"
+
+if [[ $1 == export-png ]]; then
+  src=$2 out=$3
+  if python3 "$SKILL/scripts/fireworks.py" "$@" 2>/dev/null; then exit 0; fi
+  # No native renderer: render through Chromium (svg2png.js converts every SVG in a folder at 2x).
+  work=$(mktemp -d)
+  cp "$src" "$work/diagram.svg"
+  node "$SKILL/scripts/svg2png.js" "$work" >/dev/null
+  mv "$work/diagram.png" "$out"
+  rm -rf "$work"
+  print "{\"ok\": true, \"png\": \"$out\", \"renderer\": \"chromium\"}"
+  exit 0
+fi
+
+exec python3 "$SKILL/scripts/fireworks.py" "$@"

@@ -1,0 +1,17 @@
+{
+  "name": "jarvis",
+  "displayName": "Jarvis",
+  "version": "1.0.0",
+  "description": "Personal assistant brain: private markdown vault, identity and roles, onboarding, daily routines, recall, and the Jarvis MCP tools. Works alongside the same Jarvis in Hermes, Codex and other harnesses.",
+  "author": { "name": "Jarvis" },
+  "license": "MIT",
+  "keywords": ["assistant", "second-brain", "obsidian", "memory", "jarvis"],
+  "skills": [
+    "./skills/jarvis/",
+    "./skills/packs/agency/",
+    "./skills/packs/employee/",
+    "./skills/packs/ceo/",
+    "./skills/packs/freelancer/",
+    "./skills/vendor/"
+  ]
+}

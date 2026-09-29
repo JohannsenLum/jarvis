@@ -1,0 +1,14 @@
+{
+  "name": "jarvis",
+  "description": "Jarvis, a personal assistant you can plug into Claude Code, Codex and other harnesses.",
+  "owner": {
+    "name": "Jarvis"
+  },
+  "plugins": [
+    {
+      "name": "jarvis",
+      "source": "./",
+      "description": "Jarvis: your personal assistant's brain, skills and memory, for Claude Code and Codex."
+    }
+  ]
+}

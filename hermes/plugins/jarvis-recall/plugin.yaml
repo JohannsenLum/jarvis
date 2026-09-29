@@ -1,0 +1,3 @@
+name: jarvis-recall
+version: "1.0"
+description: Adds Jarvis's now.md at the start of each conversation and short notes about people, clients and projects you mention. Local file reads only, no network, silent when nothing matches.
