@@ -1,7 +1,8 @@
 # Secrets
 .env
 
-# Your personal second brain stays out of the template repo.
+# Your personal second brain stays out of the repo (it's public). Only the schema and page
+# templates are shared; setup creates index.md, log.md and now.md locally.
 # Put knowledge/ in its own PRIVATE git repo if you want history (recommended).
 knowledge/*
 !knowledge/SCHEMA.md
@@ -12,8 +13,6 @@ knowledge/inbox/*
 knowledge/raw/*
 !knowledge/inbox/.gitkeep
 !knowledge/raw/.gitkeep
-!knowledge/index.md
-!knowledge/log.md
 
 # Skills Jarvis teaches itself are personal too
 skills/learned/*

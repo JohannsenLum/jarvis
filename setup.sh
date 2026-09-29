@@ -259,6 +259,9 @@ fi
 
 # ---------------------------------------------------------------- 3. Identity + skills
 step "Jarvis identity and skills"
+# Local vault files (never committed: the repo is public).
+[[ -f $KNOWLEDGE/index.md ]] || printf '# Index\n\nCatalog of every page in the vault, grouped by folder. Jarvis updates this on every change.\n\n## me\n\n## life\n\n## relationships\n\n## work\n\n## journal\n' > "$KNOWLEDGE/index.md"
+[[ -f $KNOWLEDGE/log.md ]] || printf '# Log\n\nAppend-only. One line per change: `## [YYYY-MM-DD] <kind> | <what>`\n\n' > "$KNOWLEDGE/log.md"
 # The `jarvis` command: plugs Jarvis into Hermes now, and into other tools in the step after this.
 mkdir -p "$HOME/.local/bin" && ln -sfn "$ROOT/bin/jarvis" "$HOME/.local/bin/jarvis"
 "$ROOT/bin/jarvis" install hermes       # identity (from your settings), Jarvis MCP tools, recall plugin
