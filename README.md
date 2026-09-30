@@ -12,6 +12,33 @@ use it, it's the same Jarvis: one identity, one private markdown vault, one set 
                                   knowledge/ vault (Obsidian)
 ```
 
+## Get started
+
+```bash
+npx github:JohannsenLum/jarvis          # wizard: your name, assistant's name, role, tone, autonomy, work
+cd ~/Jarvis && claude                   # Claude Code in this folder is Jarvis (also codex, gemini, grok…)
+```
+
+The wizard builds **your own Jarvis folder** and a private git repo for it:
+
+```
+~/Jarvis/
+  CLAUDE.md, AGENTS.md, GEMINI.md   your Jarvis identity (Jarvis's part is a marked block; add your own notes around it)
+  .claude/  .agents/  .codex/  .gemini/  .mcp.json    skills, sub-agents, recall hooks, Jarvis tools
+  knowledge/        your vault: yours, never touched by updates
+  skills/           your own skills; a copy of a Jarvis skill here overrides the original; never touched by updates
+  .jarvis/          the framework: replaced wholesale by `jarvis update` (no merge conflicts)
+```
+
+- **Only in this folder by default.** Claude Code elsewhere stays normal. Want Jarvis everywhere?
+  `jarvis install claude-code --global`.
+- **Updates:** `jarvis update` swaps `.jarvis/` for the latest version and re-renders. Your vault, your
+  `skills/`, your notes and settings stay as they are.
+- **First open:** Claude Code asks you to approve the folder's MCP server (`jarvis`). Say yes.
+- **Always-on** (Telegram, scheduled briefings, desk voice): run `.jarvis/setup.sh` for Hermes, or
+  `jarvis schedule install --runner launchd-claude` to run routines through Claude on this Mac.
+- Keep any remote for your Jarvis folder **private**: your vault is in it.
+
 **Portable core (works in every harness)**
 - `core/AGENTS.md.tmpl` + `core/roles/`: identity, rendered with your role/tone/autonomy by `jarvis render`
 - `skills/`: Agent Skills (`SKILL.md`), linked into each harness's skills folder

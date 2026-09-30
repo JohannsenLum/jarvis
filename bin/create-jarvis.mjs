@@ -11,7 +11,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import readline from "node:readline/promises";
+import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -49,6 +49,27 @@ function parseArgs(argv) {
     }
   }
   return out;
+}
+
+// Line reader that works both in a terminal and with piped answers (readline's question() drops lines
+// that arrive before it's called, which breaks scripted installs).
+function makeAsker() {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout, terminal: !!process.stdin.isTTY });
+  const queue = [], waiters = [];
+  let closed = false;
+  rl.on("line", (l) => (waiters.length ? waiters.shift()(l) : queue.push(l)));
+  rl.on("close", () => { closed = true; while (waiters.length) waiters.shift()(""); });
+  return {
+    question(q) {
+      process.stdout.write(q);
+      return new Promise((res) => {
+        if (queue.length) res(queue.shift());
+        else if (closed) res("");
+        else waiters.push(res);
+      }).then((a) => { if (!process.stdin.isTTY) process.stdout.write(a + "\n"); return a; });
+    },
+    close() { rl.close(); },
+  };
 }
 
 const expand = (p) => path.resolve(p.replace(/^~(?=$|\/)/, os.homedir()));
@@ -95,7 +116,7 @@ async function main() {
   if (!which("python3")) { console.error("  Python 3 is required (it ships with macOS developer tools: xcode-select --install)."); process.exit(1); }
   if (!which("git")) { console.error("  git is required (xcode-select --install)."); process.exit(1); }
 
-  const rl = args.yes ? null : readline.createInterface({ input: process.stdin, output: process.stdout });
+  const rl = args.yes ? null : makeAsker();
   const answers = { user: {}, skipped: [] };
   const pick = async (key, q, list, def) => {
     if (args[key]) return args[key];

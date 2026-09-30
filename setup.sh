@@ -6,7 +6,9 @@
 set -e
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-KNOWLEDGE="$ROOT/knowledge"
+# Works both from the Jarvis repo and from inside a Jarvis folder (<folder>/.jarvis/setup.sh).
+KNOWLEDGE="$(python3 -c "import sys; sys.path.insert(0, '$ROOT/core'); from jarvis_core import config; print(config.vault())")"
+USER_SKILLS="$(python3 -c "import sys; sys.path.insert(0, '$ROOT/core'); from jarvis_core import config; r = config.instance_root(); print(r / 'skills' if r else '$ROOT/skills/learned')")"
 
 step()  { print -P "\n%F{yellow}▸ $1%f"; }
 info()  { print -P "  $1"; }
@@ -278,8 +280,14 @@ mkdir -p "$HOME/.local/bin" && ln -sfn "$ROOT/bin/jarvis" "$HOME/.local/bin/jarv
 "$ROOT/bin/jarvis" install hermes       # identity (from your settings), Jarvis MCP tools, recall plugin
 ok "Jarvis identity installed in Hermes (vault: $KNOWLEDGE)"
 mkdir -p "$ROOT/skills/learned"
-hermes config set skills.external_dirs "['$ROOT/skills']" >/dev/null
-hermes config set skills.create_dir "$ROOT/skills/learned" >/dev/null
+if [[ $(basename "$ROOT") == ".jarvis" ]]; then      # a Jarvis folder: your skills/ first, then Jarvis's
+  mkdir -p "$USER_SKILLS/learned"
+  hermes config set skills.external_dirs "['$USER_SKILLS', '$ROOT/skills']" >/dev/null
+  hermes config set skills.create_dir "$USER_SKILLS/learned" >/dev/null
+else
+  hermes config set skills.external_dirs "['$ROOT/skills']" >/dev/null
+  hermes config set skills.create_dir "$ROOT/skills/learned" >/dev/null
+fi
 ok "Skills loaded from $ROOT/skills (new skills Jarvis writes go to skills/learned, tracked in git)"
 # One brain: Hermes' own llm-wiki skill would start a separate wiki in ~/wiki, so turn it off, and
 # point the bundled Obsidian skill at the Jarvis vault.
