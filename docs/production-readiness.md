@@ -27,17 +27,23 @@ bash scripts/test-isolated.sh jarvis-ci
 ```
 
 `npm run check` and `npm test` are available for a trusted developer checkout; use the isolated runner
-for security reproductions or untrusted contributions. On macOS, use a disposable Linux VM/container
-for this sandbox. Do not point fixture tests at a real Jarvis instance.
+only after reviewing the launcher and Dockerfiles. They execute outside the container and are part of
+the trusted harness. For untrusted contributions, run the entire checkout inside a disposable VM
+without credentials or shared host mounts, or use a separately trusted harness/image. GitHub’s
+disposable runner is CI’s outer isolation boundary. Do not point tests at a real Jarvis instance.
 
 ## Release process
 
-1. Merge reviewed changes after CI and CodeQL pass. Manually check macOS installation/update,
+1. Merge reviewed changes after CI passes and CodeQL finishes. Review the code-scanning alerts for
+   the exact release commit and resolve or explicitly triage every applicable alert; successful
+   analysis/upload alone does not mean there are no vulnerabilities. Manually check macOS installation/update,
    Office/Command, chat resizing, tmux, approval prompts and Obsidian with a disposable vault.
 2. Update `package.json`'s version in a reviewed change. Create and push the matching `vX.Y.Z` tag.
 3. The tag workflow reruns CI, requires the tag to match the package version, packs with lifecycle
    scripts disabled, and creates a **draft** release containing the `.tgz` and `SHA256SUMS`.
-4. Review release notes and checksums before publishing the draft. Install a reviewed release with
+4. Verify the tagged commit’s CodeQL alert review, release notes and checksums before publishing the
+   draft. The tag workflow gates draft creation on CI, not on CodeQL alert severity; this manual
+   security review is required. Install a reviewed release with
    `npx github:JohannsenLum/jarvis#vX.Y.Z`. `jarvis update` currently follows its configured Git source,
    usually `main`; it does not consume or verify release assets automatically.
 
@@ -72,7 +78,9 @@ provider-side permission policies need their own reviews.
 
 ## Repository settings
 
-Recommended merge requirements: **CI passed**, both CodeQL language checks, no force pushes or branch
-deletion, and review of workflow/security changes. Enable private vulnerability reporting, Dependabot
-security alerts/updates and secret-scanning push protection. Workflow files alone do not enforce branch
-protection or enable every GitHub security setting; check repository settings before relying on them.
+Private vulnerability reporting, Dependabot alerts/automatic security fixes, and secret-scanning
+push protection are enabled. Branch protection has not been configured by this change. Recommended
+merge requirements: **CI passed**, both CodeQL language checks, a code-scanning ruleset requiring
+CodeQL with high/critical security alerts blocked, no force pushes or branch deletion, and review of
+workflow/security changes. Until that ruleset is configured, manually inspect applicable alerts
+before merging and publishing. Workflow success alone is not a vulnerability gate.

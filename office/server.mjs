@@ -368,7 +368,7 @@ function openInObsidian(rel) {
   }
   // The vault itself opens by name; a page opens by its full path (path= is meant for files in a vault).
   const url = rel ? `obsidian://open?path=${encodeURIComponent(path.join(VAULT, rel))}` : `obsidian://open?vault=${encodeURIComponent(path.basename(VAULT))}`;
-  try { execFileSync("open", [url]); } catch (e) { return { ok: false, message: String(e.message || e) }; }
+  try { execFileSync("open", [url]); } catch { return { ok: false, message: "Could not open Obsidian. Check that it is installed and try again." }; }
   return { ok: true, message: known ? "Opening in Obsidian." : "Opening your vault in Obsidian (added it to Obsidian's vault list)." };
 }
 
