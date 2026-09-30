@@ -428,13 +428,19 @@ def update(source: str) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         if subprocess.run(["git", "clone", "--depth", "1", "-q", source, tmp]).returncode != 0:
             raise SystemExit(f"Couldn't download {source}")
-        for old in ("hermes", "setup.sh"):                           # pre-adapters layout
+        # What to copy comes from the NEW version (framework.json), so folders added later arrive too
+        try:
+            manifest = json.loads((Path(tmp) / "framework.json").read_text())
+        except (OSError, ValueError):
+            manifest = {"parts": ["core", "mcp", "hooks", "bin", "agents", "frameworks", "adapters", "office",
+                                  "deps.env", "README.md"], "removed": ["hermes", "setup.sh"]}
+        for old in manifest.get("removed", []):
             p_old = REPO / old
             if p_old.is_dir():
                 shutil.rmtree(p_old)
             elif p_old.exists():
                 p_old.unlink()
-        for part in ("core", "mcp", "hooks", "bin", "agents", "frameworks", "adapters", "office", "deps.env", "README.md"):
+        for part in manifest["parts"]:
             src, dst = Path(tmp) / part, REPO / part
             if not src.exists():
                 continue

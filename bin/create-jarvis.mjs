@@ -15,7 +15,7 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FRAMEWORK = ["core", "mcp", "hooks", "bin", "skills", "agents", "frameworks", "adapters", "office", "deps.env", "README.md"];
+const FRAMEWORK = ["skills", ...JSON.parse(fs.readFileSync(path.join(PKG, "framework.json"), "utf8")).parts];
 const SKIP_NAMES = new Set([".git", "node_modules", "__pycache__", ".pytest_cache", ".DS_Store"]);
 const ROLES = [
   ["chief-of-staff", "Chief of Staff: runs your priorities, preps you, pushes back"],

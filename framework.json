@@ -1,0 +1,4 @@
+{
+  "parts": ["core", "mcp", "hooks", "bin", "agents", "frameworks", "adapters", "office", "deps.env", "README.md", "framework.json"],
+  "removed": ["hermes", "setup.sh"]
+}
