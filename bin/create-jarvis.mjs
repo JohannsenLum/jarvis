@@ -15,7 +15,7 @@ import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 
 const PKG = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const FRAMEWORK = ["core", "mcp", "hooks", "bin", "skills", "agents", "frameworks", "adapters", "deps.env", "README.md"];
+const FRAMEWORK = ["core", "mcp", "hooks", "bin", "skills", "agents", "frameworks", "adapters", "office", "deps.env", "README.md"];
 const SKIP_NAMES = new Set([".git", "node_modules", "__pycache__", ".pytest_cache", ".DS_Store"]);
 const ROLES = [
   ["chief-of-staff", "Chief of Staff: runs your priorities, preps you, pushes back"],
@@ -216,6 +216,7 @@ ${gold(bold(`  ${name} is ready.`))}
   Updates:              ${bold("jarvis update")}   ${dim("(replaces only .jarvis/, no merge conflicts)")}
 
   Optional:
+    Watch Jarvis and its sub-agents work, type and approve from the browser:  ${bold("jarvis office")}
     Always-on (Telegram, scheduled briefings, desk voice) with Hermes:  ${bold("jarvis setup hermes")}
     Scheduled routines through Claude on this Mac:                     ${bold("jarvis schedule install --runner launchd-claude")}
     Jarvis in every folder, not just this one:                         ${bold("jarvis install claude-code --global")}

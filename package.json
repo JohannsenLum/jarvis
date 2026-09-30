@@ -6,7 +6,7 @@
   "type": "module",
   "bin": { "create-jarvis": "bin/create-jarvis.mjs" },
   "engines": { "node": ">=18" },
-  "files": ["bin", "core", "mcp", "hooks", "skills", "agents", "frameworks", "adapters", "knowledge/SCHEMA.md", "knowledge/_templates", "deps.env", "README.md", ".claude-plugin", ".mcp.json"],
+  "files": ["bin", "core", "mcp", "hooks", "skills", "agents", "frameworks", "adapters", "office", "knowledge/SCHEMA.md", "knowledge/_templates", "deps.env", "README.md", ".claude-plugin", ".mcp.json"],
   "repository": { "type": "git", "url": "git+https://github.com/JohannsenLum/jarvis.git" },
   "keywords": ["jarvis", "assistant", "claude-code", "codex", "agent-skills", "mcp", "second-brain", "obsidian"]
 }

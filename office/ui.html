@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Jarvis Office</title>
+<style>
+:root{
+  --bg:#EEF1F4; --surface:#FFFFFF; --ink:#16202A; --ink-2:#56636F; --line:#D5DCE2;
+  --accent:#C8871E; --accent-soft:#F6E9D2; --work:#1F8A5B; --work-soft:#DDF2E7; --warn:#B4441F; --warn-soft:#F8E1D8;
+  --floor-a:#E4DCCB; --floor-b:#DDD3BF; --wall:#CFC4AE; --desk:#8C6A45; --desk-top:#A88158;
+  --mono:ui-monospace,"SF Mono",Menlo,monospace; --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#10161C; --surface:#18212A; --ink:#E6ECF0; --ink-2:#98A6B2; --line:#2A3743;
+    --accent:#E0A547; --accent-soft:#3A2D16; --work:#4CC38A; --work-soft:#143324; --warn:#F07A52; --warn-soft:#3C1E14;
+    --floor-a:#2A2620; --floor-b:#25221C; --wall:#3A342A; --desk:#5E4630; --desk-top:#77593C;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#10161C; --surface:#18212A; --ink:#E6ECF0; --ink-2:#98A6B2; --line:#2A3743;
+  --accent:#E0A547; --accent-soft:#3A2D16; --work:#4CC38A; --work-soft:#143324; --warn:#F07A52; --warn-soft:#3C1E14;
+  --floor-a:#2A2620; --floor-b:#25221C; --wall:#3A342A; --desk:#5E4630; --desk-top:#77593C;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid var(--line);background:var(--surface);flex-wrap:wrap}
+header h1{font-size:17px;margin:0;letter-spacing:.02em}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--ink-2);display:inline-block}
+.dot.on{background:var(--work);box-shadow:0 0 0 3px var(--work-soft)}
+.sub{color:var(--ink-2);font-size:13px}
+.spacer{flex:1}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink-2);padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--ink);font-weight:600}
+main{flex:1;display:grid;grid-template-columns:1fr minmax(320px,420px);min-height:0}
+@media (max-width:900px){main{grid-template-columns:1fr}.panel{border-left:0;border-top:1px solid var(--line);min-height:60vh}}
+.stage{overflow:auto;padding:18px}
+/* permissions */
+.perms{display:grid;gap:10px;margin-bottom:16px}
+.perm{background:var(--warn-soft);border:1px solid var(--warn);border-radius:10px;padding:12px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.perm b{font-family:var(--mono);font-size:13px}
+.perm code{font-family:var(--mono);font-size:12.5px;color:var(--ink-2);word-break:break-all}
+.perm .grow{flex:1;min-width:200px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:7px 14px;font:inherit;font-size:13.5px;cursor:pointer}
+.btn.primary{background:var(--work);border-color:var(--work);color:#fff}
+.btn.danger{border-color:var(--warn);color:var(--warn)}
+/* office view */
+.room{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);
+  background:
+    linear-gradient(var(--wall),var(--wall)) top/100% 70px no-repeat,
+    repeating-conic-gradient(var(--floor-a) 0 25%,var(--floor-b) 0 50%) 0 0/48px 48px;
+  min-height:520px;padding:90px 24px 24px;display:grid;grid-template-columns:repeat(3,1fr);gap:34px 24px;align-content:start;image-rendering:pixelated}
+.room::before{content:"JARVIS · HQ";position:absolute;top:22px;left:24px;font:700 13px/1 var(--mono);letter-spacing:.2em;color:var(--ink-2)}
+.room .window{position:absolute;top:14px;right:24px;width:120px;height:40px;border:4px solid var(--desk);background:linear-gradient(#9CC6E8,#D7ECFA)}
+.station{position:relative;display:grid;justify-items:center;gap:6px;cursor:pointer;padding:8px;border-radius:12px;border:2px solid transparent;background:none;color:inherit;font:inherit}
+.station:focus-visible,.station.sel{border-color:var(--accent);outline:none;background:color-mix(in srgb,var(--surface) 55%,transparent)}
+.station.boss{grid-column:2}
+.char{font-size:40px;line-height:1;filter:drop-shadow(0 3px 0 rgba(0,0,0,.18));transition:transform .3s}
+.station.working .char{animation:bob .9s steps(2) infinite}
+@keyframes bob{50%{transform:translateY(-4px)}}
+.deskbox{width:120px;height:38px;background:var(--desk);border-top:10px solid var(--desk-top);border-radius:4px;position:relative}
+.deskbox::after{content:"";position:absolute;left:44px;top:-26px;width:32px;height:20px;background:#27313B;border:3px solid #3E4A55;border-radius:2px}
+.station.working .deskbox::after{background:#3FA37A}
+.name{font:600 12.5px/1.2 var(--mono);letter-spacing:.04em}
+.bubble{max-width:190px;min-height:22px;font-size:12px;color:var(--ink-2);text-align:center;line-height:1.3}
+.station.working .bubble{background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:4px 8px}
+.visitors{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-top:2px dashed color-mix(in srgb,var(--ink-2) 40%,transparent);padding-top:14px}
+.visitors .label{font:600 12px var(--mono);color:var(--ink-2);letter-spacing:.08em}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:inherit}
+.chip.working{border-color:var(--work);color:var(--work)}
+/* control room */
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:8px;cursor:pointer;text-align:left;color:inherit;font:inherit}
+.card.sel,.card:focus-visible{border-color:var(--accent);outline:none}
+.card h3{margin:0;font-size:15px;display:flex;align-items:center;gap:8px}
+.state{font:600 11px var(--mono);padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--ink-2);text-transform:uppercase;letter-spacing:.06em}
+.state.working{background:var(--work-soft);color:var(--work)}
+.card .last{font-size:13px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.nowbox{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.nowbox h3{margin:0 0 6px;font-size:14px}
+.nowbox pre{margin:0;white-space:pre-wrap;font:12.5px/1.55 var(--mono);color:var(--ink-2)}
+/* panel */
+.panel{border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0}
+.panel .head{padding:14px 16px;border-bottom:1px solid var(--line)}
+.panel .head h2{margin:0;font-size:16px;display:flex;gap:8px;align-items:center}
+.log{flex:1;overflow:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.msg{max-width:92%;padding:8px 12px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word;font-size:14px}
+.msg.user{align-self:flex-end;background:var(--accent-soft)}
+.msg.assistant{align-self:flex-start;background:var(--bg)}
+.msg.tool{align-self:flex-start;font:12px/1.4 var(--mono);color:var(--ink-2);padding:2px 4px}
+.msg code{font-family:var(--mono);font-size:.9em}
+.compose{border-top:1px solid var(--line);padding:12px;display:grid;gap:8px}
+.compose textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;background:var(--bg);color:var(--ink)}
+.compose .row{display:flex;gap:8px;align-items:center}
+.hint{font-size:12px;color:var(--ink-2)}
+.empty{color:var(--ink-2);font-size:13.5px;padding:10px 0}
+.term{border-top:1px solid var(--line);padding:10px 12px;display:grid;gap:8px}
+.term summary{cursor:pointer;font-size:13px;color:var(--ink-2)}
+.term.asking{background:var(--accent-soft)}
+.term.asking summary{color:var(--ink);font-weight:600}
+.term pre{margin:0;max-height:260px;overflow:auto;background:#0E1319;color:#D8E1E8;border-radius:8px;padding:10px;font:12px/1.35 var(--mono);white-space:pre}
+.keys{display:flex;flex-wrap:wrap;gap:6px}
+.keys .btn{padding:5px 10px;font-family:var(--mono);font-size:12.5px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <span class="dot" id="live"></span>
+  <h1>Jarvis Office</h1>
+  <span class="sub" id="sub">connecting…</span>
+  <span class="spacer"></span>
+  <div class="seg" role="group" aria-label="View">
+    <button id="v-office" aria-pressed="true">Office</button>
+    <button id="v-control" aria-pressed="false">Control room</button>
+  </div>
+</header>
+<main>
+  <section class="stage">
+    <div class="perms" id="perms"></div>
+    <div id="view"></div>
+  </section>
+  <aside class="panel" aria-label="Conversation">
+    <div class="head"><h2 id="p-title">Jarvis</h2><div class="sub" id="p-sub"></div></div>
+    <div class="log" id="log"></div>
+    <details class="term" id="term">
+      <summary id="termSum">Terminal</summary>
+      <pre id="screen"></pre>
+      <div class="keys">
+        <button class="btn" data-key="Up">↑</button><button class="btn" data-key="Down">↓</button>
+        <button class="btn" data-key="Space">Space</button><button class="btn primary" data-key="Enter">Enter</button>
+        <button class="btn" data-key="Tab">Tab</button><button class="btn" data-key="Escape">Esc</button>
+        <button class="btn" data-key="1">1</button><button class="btn" data-key="2">2</button><button class="btn" data-key="3">3</button><button class="btn" data-key="4">4</button>
+      </div>
+    </details>
+    <div class="compose">
+      <textarea id="text" placeholder="Message Jarvis…  (Enter to send, Shift+Enter for a new line)"></textarea>
+      <div class="row">
+        <button class="btn primary" id="sendBtn">Send</button>
+        <button class="btn" id="escBtn" title="Same as pressing Esc in the terminal">Interrupt</button>
+        <span class="hint" id="hint">Typed into your terminal session, so both stay in sync.</span>
+      </div>
+    </div>
+  </aside>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const TOKEN = "__UI_TOKEN__";
+const DESK = {
+  librarian: { icon: "📚", label: "Librarian", job: "files and tidies the vault" },
+  researcher: { icon: "🔍", label: "Researcher", job: "web and vault research" },
+  critic: { icon: "🧐", label: "Critic", job: "second opinions" },
+  creative: { icon: "🎨", label: "Creative", job: "images, video, diagrams" },
+};
+let state = null, selected = "jarvis", view = "office";
+try { view = localStorage.getItem("office-view") || "office"; } catch {}
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const md = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2200); }
+
+async function post(url, data) {
+  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json", "x-office-token": TOKEN }, body: JSON.stringify(data) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || r.statusText);
+  return j;
+}
+
+function target(id) {
+  if (!state) return null;
+  if (id === "jarvis") return { ...state.main, id, title: "Jarvis", sub: state.main.title || "main session" };
+  const d = state.desks.find((x) => x.type === id);
+  if (d) return d.latest ? { ...d.latest, id, title: DESK[id].label, sub: d.latest.description || DESK[id].job }
+                         : { id, title: DESK[id].label, sub: DESK[id].job, state: "idle", messages: [] };
+  const v = state.visitors.find((x) => x.id === id);
+  return v ? { ...v, id, title: v.type, sub: v.description } : null;
+}
+
+function station(id, icon, label, s, boss) {
+  const doing = s?.state === "working" ? (s.doing || "working…") : (s ? "idle" : "not called yet");
+  return `<button class="station ${boss ? "boss" : ""} ${s?.state === "working" ? "working" : ""} ${selected === id ? "sel" : ""}" data-id="${id}">
+    <div class="bubble">${esc(doing)}</div><div class="char">${icon}</div><div class="deskbox"></div><div class="name">${esc(label)}</div></button>`;
+}
+
+function renderOffice() {
+  const m = state.main;
+  const desk = (t) => station(t, DESK[t].icon, DESK[t].label, state.desks.find((d) => d.type === t).latest);
+  const vis = state.visitors.map((v) => `<button class="chip ${v.state === "working" ? "working" : ""}" data-id="${v.id}">${esc(v.type)} · ${esc(v.description || "")}</button>`).join("");
+  return `<div class="room"><div class="window"></div>
+    ${desk("librarian")}${station("jarvis", "🤵", "JARVIS", m, true)}${desk("researcher")}
+    ${desk("critic")}<div></div>${desk("creative")}
+    <div class="visitors"><span class="label">VISITORS</span>${vis || '<span class="sub">other agents appear here</span>'}</div></div>`;
+}
+
+function card(id, icon, label, s, job) {
+  const last = s?.messages?.filter((x) => x.role !== "tool").slice(-1)[0];
+  return `<button class="card ${selected === id ? "sel" : ""}" data-id="${id}">
+    <h3>${icon} ${esc(label)} <span class="state ${s?.state === "working" ? "working" : ""}">${esc(s?.state || "idle")}</span></h3>
+    <div class="sub">${esc(s?.state === "working" ? s.doing : job)}</div>
+    <div class="last">${last ? esc(last.text) : "Nothing yet."}</div></button>`;
+}
+
+function renderControl() {
+  const cards = [card("jarvis", "🤵", "Jarvis", state.main, state.main.title || "main session"),
+    ...Object.keys(DESK).map((t) => card(t, DESK[t].icon, DESK[t].label, state.desks.find((d) => d.type === t).latest, DESK[t].job)),
+    ...state.visitors.map((v) => card(v.id, "👤", v.type, v, v.description))].join("");
+  return `<div class="cards">${cards}</div>` + (state.now ? `<div class="nowbox"><h3>now.md</h3><pre>${esc(state.now)}</pre></div>` : "");
+}
+
+function renderPerms() {
+  $("perms").innerHTML = state.permissions.map((p) => `<div class="perm" role="alert">
+    <div class="grow"><b>${esc(p.agent ? p.agent + " wants" : "Jarvis wants")} to use ${esc(p.tool)}</b><br><code>${esc(p.detail)}</code></div>
+    <button class="btn primary" data-allow="${p.id}">Allow</button><button class="btn danger" data-deny="${p.id}">Deny</button></div>`).join("");
+}
+
+function renderPanel() {
+  const t = target(selected) || target("jarvis");
+  const log = $("log");
+  const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+  $("p-title").innerHTML = `${esc(t.title)} <span class="state ${t.state === "working" ? "working" : ""}">${esc(t.state)}</span>`;
+  $("p-sub").textContent = t.sub || "";
+  log.innerHTML = t.messages?.length ? t.messages.map((m) => m.role === "tool"
+      ? `<div class="msg tool">⚙ ${esc(m.name)} ${esc(m.detail)}</div>`
+      : `<div class="msg ${m.role}">${md(m.text)}</div>`).join("") : `<div class="empty">No conversation yet.</div>`;
+  if (stick) log.scrollTop = log.scrollHeight;
+  const isMain = selected === "jarvis";
+  $("text").placeholder = isMain ? "Message Jarvis…  (Enter to send, Shift+Enter for a new line)" : `Message for the ${t.title}… (goes through Jarvis)`;
+  $("hint").textContent = !state.tmux ? "Typing needs the office session: run `jarvis office` in a terminal." :
+    isMain ? "Typed into your terminal session, so both stay in sync." : "Sub-agents take a job and report back; Jarvis passes this on.";
+}
+
+let wasAsking = false;
+function renderTerm() {
+  const sc = state.screen || { text: "", asking: false };
+  const term = $("term");
+  term.hidden = !state.tmux;
+  term.classList.toggle("asking", sc.asking);
+  $("termSum").textContent = sc.asking ? "Jarvis is asking you something: answer here or in the terminal" : "Terminal";
+  if (sc.asking && !wasAsking) term.open = true;          // pop open when a picker or prompt appears
+  wasAsking = sc.asking;
+  const pre = $("screen");
+  if (pre.textContent !== sc.text) { pre.textContent = sc.text; pre.scrollTop = pre.scrollHeight; }
+}
+
+function render() {
+  $("live").classList.toggle("on", !!state.session);
+  $("sub").textContent = state.session ? `${state.root.replace(/^\/Users\/[^/]+/, "~")}${state.tmux ? " · terminal linked" : " · view only"}` : "no Claude session in this folder yet";
+  $("view").innerHTML = view === "office" ? renderOffice() : renderControl();
+  $("v-office").setAttribute("aria-pressed", view === "office");
+  $("v-control").setAttribute("aria-pressed", view === "control");
+  renderPerms();
+  renderPanel();
+  renderTerm();
+}
+
+document.addEventListener("click", async (e) => {
+  const sel = e.target.closest("[data-id]");
+  if (sel) { selected = sel.dataset.id; render(); return; }
+  const k = e.target.closest("[data-key]");
+  if (k) { try { await post("/api/send", { key: k.dataset.key }); } catch (err) { toast(err.message); } return; }
+  const a = e.target.closest("[data-allow],[data-deny]");
+  if (a) {
+    const id = a.dataset.allow || a.dataset.deny;
+    try { await post(`/api/permission/${id}`, { behavior: a.dataset.allow ? "allow" : "deny" }); toast(a.dataset.allow ? "Allowed" : "Denied"); }
+    catch (err) { toast(err.message); }
+  }
+});
+$("v-office").onclick = () => { view = "office"; try { localStorage.setItem("office-view", view); } catch {} render(); };
+$("v-control").onclick = () => { view = "control"; try { localStorage.setItem("office-view", view); } catch {} render(); };
+
+async function sendText() {
+  const text = $("text").value.trim();
+  if (!text) return;
+  const t = target(selected);
+  const out = selected === "jarvis" ? text : `Message for the ${t.title} sub-agent (send it a follow-up, or re-run it with this): ${text}`;
+  try { await post("/api/send", { text: out }); $("text").value = ""; toast("Sent to your session"); }
+  catch (err) { toast(err.message); }
+}
+$("sendBtn").onclick = sendText;
+$("text").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendText(); } });
+$("escBtn").onclick = async () => { try { await post("/api/send", { key: "Escape" }); toast("Interrupt sent"); } catch (err) { toast(err.message); } };
+
+function connect() {
+  const es = new EventSource(`/stream?t=${TOKEN}`);
+  es.onmessage = (ev) => { state = JSON.parse(ev.data); render(); };
+  es.onerror = () => { $("live").classList.remove("on"); $("sub").textContent = "reconnecting…"; };
+}
+connect();
+</script>
+</body>
+</html>

@@ -68,6 +68,26 @@ try. Anything you skip is saved and offered again later ("finish onboarding").
 - **Frameworks:** proven ways of thinking Jarvis runs with you (below).
 - **Sub-agents:** a librarian, researcher, critic and creative it hands work to (below).
 
+## Office dashboard
+
+```bash
+jarvis office          # in your Jarvis folder: opens the dashboard and your Claude session
+```
+
+A local dashboard (http://127.0.0.1:3777) for the Claude session in your Jarvis folder. You can switch
+between two views: a pixel **office**, where Jarvis and the four sub-agents sit at desks and come alive
+when they work, and a **control room** of cards with live status and `now.md`.
+
+- **Click anyone** to read their live conversation: Jarvis's chat, or exactly what the researcher is
+  searching for right now.
+- **Type from the dashboard or the terminal.** It's the same session: `jarvis office` runs Claude inside
+  tmux, and the dashboard types into it. Messages to a sub-agent go through Jarvis.
+- **Approve from either side.** Permission prompts appear as Allow / Deny cards; answer there or in the
+  terminal, and the other one clears. Pickers and prompts (onboarding questions, folder trust) show in a
+  live terminal mirror with arrow, Space and Enter buttons.
+- Local only: bound to 127.0.0.1, with a per-run token. `jarvis office stop` closes the dashboard;
+  Claude keeps running (`tmux attach -t jarvis` to get back to it). Needs tmux (`brew install tmux`).
+
 ## Routines
 
 Everything runs locally on your Mac. Jarvis sets up the routines you pick in onboarding, where you
@@ -224,6 +244,7 @@ agents/          librarian, researcher, critic, creative
 skills/          jarvis/ (onboarding, routines, brain, frameworks…) · packs/ (agency, employee, CEO, freelancer) · vendor/
 frameworks/      168, AIOO, declarations, deal cards
 adapters/hermes/ optional Hermes home: setup, recall plugin, Telegram modes
+office/          the office dashboard (Node, no dependencies)
 bin/             jarvis CLI, create-jarvis wizard, scheduler, helpers
 knowledge/       vault template (SCHEMA.md, page templates)
 .claude-plugin/  Claude Code plugin manifests

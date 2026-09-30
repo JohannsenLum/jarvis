@@ -6,6 +6,7 @@
     jarvis doctor                          what's installed where, and what's detected on this Mac
     jarvis schedule ...                    run scheduled jobs from another runtime (see `jarvis schedule -h`)
     jarvis setup hermes [--voice]          optional: Hermes as the always-on home (Telegram, cron, voice)
+    jarvis office [stop|status]            dashboard: watch Jarvis and its sub-agents, type and approve from the browser
     jarvis mcp                             run the Jarvis MCP server on stdio (what harnesses launch)
 
 Harnesses: claude-code, codex, deepseek, hermes, openclaw, cursor, gemini, claude-desktop.
@@ -432,7 +433,7 @@ def update(source: str) -> None:
                 shutil.rmtree(p_old)
             elif p_old.exists():
                 p_old.unlink()
-        for part in ("core", "mcp", "hooks", "bin", "agents", "frameworks", "adapters", "deps.env", "README.md"):
+        for part in ("core", "mcp", "hooks", "bin", "agents", "frameworks", "adapters", "office", "deps.env", "README.md"):
             src, dst = Path(tmp) / part, REPO / part
             if not src.exists():
                 continue
@@ -464,6 +465,95 @@ def export_skills(out: Path) -> None:
     print(f"✓ {len(skill_dirs())} skill zips in {out}. Upload them in the Claude app: Settings → Capabilities → Skills.")
 
 
+OFFICE_DIR = Path.home() / ".jarvis-office"
+
+
+def _node() -> str | None:
+    return shutil.which("node") or next((str(p) for p in (Path.home() / ".local/opt/node/bin/node",
+                                                         Path("/opt/homebrew/bin/node")) if p.exists()), None)
+
+
+def _tmux() -> str | None:
+    return shutil.which("tmux") or next((p for p in ("/opt/homebrew/bin/tmux", "/usr/local/bin/tmux") if Path(p).exists()), None)
+
+
+def _office_up(port: int) -> bool:
+    import urllib.request
+    try:
+        urllib.request.urlopen(f"http://127.0.0.1:{port}/", timeout=1)
+        return True
+    except Exception:
+        return False
+
+
+def office_hook(add: bool, settings: Path, node: str) -> None:
+    """The approval hook: lets the dashboard answer permission prompts (the terminal still can)."""
+    cmd = f'"{node}" "{REPO / "office" / "permission-hook.mjs"}"'
+    def update(d: dict) -> None:
+        hooks = d.setdefault("hooks", {})
+        groups = [g for g in hooks.get("PermissionRequest", [])
+                  if not any("office/permission-hook.mjs" in h.get("command", "") for h in g.get("hooks", []))]
+        if add:
+            groups.append({"matcher": "*", "hooks": [{"type": "command", "command": cmd, "timeout": 120}]})
+        if groups:
+            hooks["PermissionRequest"] = groups
+        else:
+            hooks.pop("PermissionRequest", None)
+        if not hooks:
+            d.pop("hooks", None)
+    json_merge(settings, update)
+
+
+def office(action: str, port: int, approvals: bool, attach: bool) -> None:
+    root = config.instance_root() or Path.cwd()
+    pidfile = OFFICE_DIR / "server.pid"
+    if action == "stop":
+        try:
+            os.kill(int(pidfile.read_text()), 15)
+            print("✓ Office dashboard stopped. Your Claude session keeps running (tmux session 'jarvis').")
+        except (OSError, ValueError):
+            print("The office dashboard isn't running.")
+        return
+    if action == "status":
+        print(f"Dashboard: {'running at http://127.0.0.1:%d' % port if _office_up(port) else 'not running'}")
+        tm = _tmux()
+        alive = bool(tm) and subprocess.run([tm, "has-session", "-t", "jarvis"], capture_output=True).returncode == 0
+        print(f"Claude session (tmux 'jarvis'): {'running' if alive else 'not running'}")
+        return
+    node, tm = _node(), _tmux()
+    if not node:
+        raise SystemExit("The office needs Node.js 18+ (https://nodejs.org).")
+    OFFICE_DIR.mkdir(parents=True, exist_ok=True)
+    if approvals:
+        office_hook(True, root / ".claude" / "settings.json", node)
+    if not _office_up(port):
+        log = open(OFFICE_DIR / "server.log", "a")
+        proc = subprocess.Popen([node, str(REPO / "office" / "server.mjs"), "--root", str(root), "--port", str(port)],
+                                stdout=log, stderr=log, stdin=subprocess.DEVNULL, start_new_session=True)
+        pidfile.write_text(str(proc.pid))
+        for _ in range(30):
+            if _office_up(port):
+                break
+            import time
+            time.sleep(0.1)
+    url = f"http://127.0.0.1:{port}"
+    print(f"✓ Office dashboard: {url}")
+    subprocess.run(["open", url], capture_output=True)
+    if not tm:
+        print("! tmux isn't installed (brew install tmux), so the dashboard can watch but not type.\n"
+              "  Start Claude as usual: cd", root, "&& claude")
+        return
+    if subprocess.run([tm, "has-session", "-t", "jarvis"], capture_output=True).returncode != 0:
+        # Start clean: don't inherit markers from a Claude session this command might be run from
+        unset = [x for k in os.environ if k == "CLAUDECODE" or k.startswith("CLAUDE_CODE_") for x in ("-u", k)]
+        subprocess.run([tm, "new-session", "-d", "-s", "jarvis", "-c", str(root), "env", *unset, "claude"], check=True)
+        print("✓ Started Claude in this folder (tmux session 'jarvis').")
+    if attach and sys.stdin.isatty():
+        print("Opening the session here. Detach with Ctrl-b then d (Claude keeps running).")
+        os.execv(tm, [tm, "attach", "-t", "jarvis"])
+    print(f"Open the session in a terminal any time: {tm} attach -t jarvis")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(prog="jarvis", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -483,6 +573,11 @@ def main() -> None:
     p = sub.add_parser("setup", help="optional always-on home: jarvis setup hermes [--voice]")
     p.add_argument("runtime", choices=["hermes"])
     p.add_argument("rest", nargs=argparse.REMAINDER)
+    p = sub.add_parser("office", help="dashboard: watch Jarvis and its sub-agents, type and approve from the browser")
+    p.add_argument("action", nargs="?", default="start", choices=["start", "stop", "status"])
+    p.add_argument("--port", type=int, default=3777)
+    p.add_argument("--no-approvals", dest="approvals", action="store_false", help="don't answer permission prompts from the dashboard")
+    p.add_argument("--no-attach", dest="attach", action="store_false", help="don't open the session in this terminal")
     sub.add_parser("mcp", help="run the MCP server on stdio")
     p = sub.add_parser("schedule", help="scheduled jobs from another runtime")
     p.add_argument("args", nargs=argparse.REMAINDER)
@@ -512,6 +607,8 @@ def main() -> None:
         export_skills(a.out)
     elif a.cmd == "setup":
         os.execv("/bin/zsh", ["/bin/zsh", str(REPO / "adapters" / a.runtime / "setup.sh"), *a.rest])
+    elif a.cmd == "office":
+        office(a.action, a.port, a.approvals, a.attach)
     elif a.cmd == "mcp":
         os.execv(MCP_CMD[0], MCP_CMD)
     elif a.cmd == "schedule":
