@@ -541,7 +541,14 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     print(f"✓ Office dashboard: {url}")
     subprocess.run(["open", url], capture_output=True)
     if not tm:
-        print("! tmux isn't installed (brew install tmux), so the dashboard can watch but not type.\n"
+        brew = shutil.which("brew") or next((p for p in ("/opt/homebrew/bin/brew", "/usr/local/bin/brew") if Path(p).exists()), None)
+        if brew and sys.stdin.isatty():
+            yes = input("tmux isn't installed. It lets the dashboard type into your Claude session.\n"
+                        "Install it now with Homebrew? [Y/n] ").strip().lower()
+            if not yes.startswith("n") and subprocess.run([brew, "install", "tmux"]).returncode == 0:
+                tm = _tmux()
+    if not tm:
+        print("! Without tmux the dashboard can watch and approve but not type (brew install tmux).\n"
               "  Start Claude as usual: cd", root, "&& claude")
         return
     if action == "restart":

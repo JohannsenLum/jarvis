@@ -88,10 +88,12 @@ when they work, and a **control room** of cards with live status and `now.md`.
 - Flags for Claude: `jarvis office --dangerously-skip-permissions` (no prompts at all, so no approval
   cards), or anything after `--`, e.g. `jarvis office -- --model opus`. If Claude is already running in
   the office, use `jarvis office restart -- <flags>`.
-- Without tmux the dashboard still shows everything live and approvals still work; typing and the
-  terminal mirror need tmux, and you start `claude` yourself.
+- It needs tmux (a small terminal tool that lets the dashboard type into your session). The installer
+  offers to set it up when you say yes to the office, and `jarvis office` offers again if it's missing.
+  Without it the dashboard still shows everything live and approvals still work; you just type in the
+  terminal.
 - Local only: bound to 127.0.0.1, with a per-run token. `jarvis office stop` closes the dashboard;
-  Claude keeps running (`tmux attach -t jarvis` to get back to it). Needs tmux (`brew install tmux`).
+  Claude keeps running (`tmux attach -t jarvis` to get back to it).
 
 ## Routines
 

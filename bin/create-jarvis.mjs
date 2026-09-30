@@ -36,13 +36,15 @@ const c = (code, s) => (process.stdout.isTTY ? `\x1b[${code}m${s}\x1b[0m` : s);
 const gold = (s) => c("33", s), green = (s) => c("32", s), dim = (s) => c("2", s), bold = (s) => c("1", s);
 
 function parseArgs(argv) {
-  const out = { yes: false, git: true, link: true };
+  const out = { yes: false, git: true, link: true, office: null };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const val = () => argv[++i];
     if (a === "--yes" || a === "-y") out.yes = true;
     else if (a === "--no-git") out.git = false;
     else if (a === "--no-link") out.link = false;
+    else if (a === "--office") out.office = true;
+    else if (a === "--no-office") out.office = false;
     else if (a.startsWith("--")) {
       const [k, v] = a.slice(2).split("=");
       out[k] = v ?? val();
@@ -152,6 +154,10 @@ async function main() {
     const a = (await ask(rl, "Add the `jarvis` command to your terminal (~/.local/bin)?", "Y")).toLowerCase();
     link = !a.startsWith("n");
   }
+  let office = args.office;
+  if (office === null) {
+    office = args.yes ? false : !(await ask(rl, "Set up the office dashboard (watch Jarvis and its sub-agents, type and approve from your browser)?", "Y")).toLowerCase().startsWith("n");
+  }
   rl?.close();
 
   // 1. Framework into .jarvis, vault template into knowledge/
@@ -199,6 +205,21 @@ async function main() {
       console.log(`  ${green("✓")} \`jarvis\` command linked (open a new terminal if it's not found)`);
     } else {
       console.log(`  ! ${target} exists and isn't Jarvis's; left it alone. Use ${dir}/.jarvis/bin/jarvis`);
+    }
+  }
+
+  // 5. The office dashboard needs tmux to type into your Claude session
+  if (office) {
+    const brew = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"].find((p) => fs.existsSync(p)) || (which("brew") ? "brew" : null);
+    const hasTmux = which("tmux") || ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux"].some((p) => fs.existsSync(p));
+    if (hasTmux) console.log(`  ${green("✓")} Office dashboard ready (tmux found)`);
+    else if (brew) {
+      console.log(`${gold("▸")} Installing tmux for the office dashboard (brew install tmux)…`);
+      const t = spawnSync(brew, ["install", "tmux"], { stdio: "inherit" });
+      console.log(t.status === 0 ? `  ${green("✓")} tmux installed` : "  ! tmux didn't install. Try later: brew install tmux");
+    } else {
+      console.log("  ! The office needs tmux to type into your session, and Homebrew isn't installed.\n" +
+        "    Install Homebrew (https://brew.sh), then: brew install tmux. The dashboard still works read-only without it.");
     }
   }
 
