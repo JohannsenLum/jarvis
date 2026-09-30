@@ -54,7 +54,9 @@
   const mix = (h, f) => { const [r, g, b] = hex(h); const c = (v) => Math.max(0, Math.min(255, Math.round(f > 0 ? v + (255 - v) * f : v * (1 + f)))); return `rgb(${c(r)},${c(g)},${c(b)})`; };
   function path(pts) { ctx.beginPath(); pts.forEach((q, i) => (i ? ctx.lineTo(q.x, q.y) : ctx.moveTo(q.x, q.y))); ctx.closePath(); }
   function poly(pts, fill, stroke, lw = 1) { path(pts); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke) { ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); } }
-  function soft(fn, blur) { ctx.save(); ctx.filter = `blur(${blur}px)`; fn(); ctx.restore(); }
+  // Blur is expensive on the GPU: use it only while painting the cached room layer (once a second).
+  let STATIC = false;
+  function soft(fn, blur) { ctx.save(); if (STATIC) ctx.filter = `blur(${blur}px)`; else ctx.globalAlpha *= 0.75; fn(); ctx.restore(); }
   function shadow(gx, gy, w, d, spread = 0.18, alpha = 0.2) {
     soft(() => poly([p(gx - spread * 0.3, gy - spread * 0.3), p(gx + w + spread, gy - spread * 0.3), p(gx + w + spread, gy + d + spread), p(gx - spread * 0.3, gy + d + spread)], `rgba(70,40,20,${alpha})`), 6);
   }
@@ -529,15 +531,23 @@
   }
 
   // ---------- frame ----------
+  let layer = null, layerAt = 0, layerKey = "";
+  function paintRoomLayer(day) {
+    const key = `${canvas.width}x${canvas.height}`;
+    if (layer && key === layerKey && now - layerAt < 1000) return;
+    if (!layer || key !== layerKey) { layer = document.createElement("canvas"); layer.width = canvas.width; layer.height = canvas.height; layerKey = key; }
+    const main = ctx; ctx = layer.getContext("2d"); STATIC = true;
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0); ctx.clearRect(0, 0, CW, CH);
+    room(day); bookshelf(0.04, 0.3); plant(0.35, 13.2, true);
+    STATIC = false; ctx = main; layerAt = now;
+  }
   function draw() {
     if (!ctx) return;
     now = performance.now() - t0 + 1e6;
-    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
-    ctx.clearRect(0, 0, CW, CH);
     const day = daylight();
-    room(day);
-    bookshelf(0.04, 0.3);
-    plant(0.35, 13.2, true);
+    paintRoomLayer(day);
+    ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(layer, 0, 0);
+    ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
     const items = [
       { depth: 20.5, fn: () => plant(19.2, 0.4) },
       { depth: 33.0, fn: () => plant(19.2, 13.0, true) },
@@ -616,7 +626,8 @@
   function fit() {
     const avail = Math.min(host.clientWidth, (window.innerHeight - 140) * CW / CH);
     scale = Math.max(0.35, avail / CW);
-    dpr = window.devicePixelRatio || 1;
+    dpr = Math.min(1.5, window.devicePixelRatio || 1);            // 1.5× is plenty sharp for this style
+    layer = null;
     canvas.width = Math.round(CW * scale * dpr); canvas.height = Math.round(CH * scale * dpr);
     canvas.style.width = `${CW * scale}px`; canvas.style.height = `${CH * scale}px`;
     overlay.style.width = canvas.style.width; overlay.style.height = canvas.style.height;
@@ -635,6 +646,7 @@
     },
     update(s, sel) { state = s; selected = sel; labels(); },
   };
-  const loop = () => { if (canvas?.isConnected) draw(); requestAnimationFrame(loop); };
+  let lastDraw = 0;
+  const loop = (t) => { if (canvas?.isConnected && !document.hidden && t - lastDraw >= 1000 / 24) { lastDraw = t; draw(); } requestAnimationFrame(loop); };   // 24 fps
   requestAnimationFrame(loop);
 })();
