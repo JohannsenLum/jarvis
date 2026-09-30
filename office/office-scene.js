@@ -339,8 +339,9 @@
   }
   // Seated behind the desk (facing you), or standing beside it at the front-right.
   function spots(c) {
-    const [gx, gy, w, d] = c.desk, sx = c.theme === "jarvis" ? gx - 0.42 : gx + w + 0.38;   // Jarvis stands on the left
-    return { seat: p(gx + w * 0.66, gy - 0.18), stand: p(sx, gy + d * 0.55), seatDepth: gx + w * 0.66 + gy - 0.18, standDepth: sx + gy + d * 0.55 };
+    const [gx, gy, w, d] = c.desk, front = c.theme === "jarvis";        // Jarvis stands in front of its desk, on the rug
+    const sx = front ? gx + w * 0.55 : gx + w + 0.38, sy = front ? gy + d + 0.5 : gy + d * 0.55;
+    return { seat: p(gx + w * 0.66, gy - 0.18), stand: p(sx, sy), seatDepth: gx + w * 0.66 + gy - 0.18, standDepth: sx + sy };
   }
 
   // ---------- frame ----------
