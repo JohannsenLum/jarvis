@@ -86,6 +86,22 @@ def link_skills(target: Path, quiet: bool) -> list[str]:
     return linked
 
 
+def link_agents(target: Path, quiet: bool) -> int:
+    """Claude Code sub-agents (librarian, researcher, critic, creative) as per-file links."""
+    target.mkdir(parents=True, exist_ok=True)
+    n = 0
+    for src in sorted((REPO / "agents").glob("*.md")):
+        dst = target / src.name
+        if dst.is_symlink() and str(REPO) in os.readlink(dst):
+            dst.unlink()
+        elif dst.exists():
+            say(f"  ! {dst} already exists and isn't Jarvis's; left it alone", quiet)
+            continue
+        dst.symlink_to(src)
+        n += 1
+    return n
+
+
 def unlink_skills(target: Path) -> int:
     n = 0
     if target.exists():
@@ -200,7 +216,8 @@ def install(name: str, quiet: bool = False) -> None:
         if not ok:                                       # CLI missing: write the user config directly
             set_mcp_json(HOME / ".claude.json")
         claude_hooks(True, HOME / ".claude" / "settings.json")
-        say(f"✓ Claude Code: {n} skills, identity (@import in ~/.claude/CLAUDE.md), MCP server, recall hook", quiet)
+        a = link_agents(HOME / ".claude" / "agents", quiet)
+        say(f"✓ Claude Code: {n} skills, {a} sub-agents, identity (@import in ~/.claude/CLAUDE.md), MCP server, recall hook", quiet)
     elif name == "codex":
         n = len(link_skills(AGENTS_SKILLS, quiet))
         identity.write_block(identity_targets()["codex"], rendered.read_text())
@@ -260,6 +277,7 @@ def install(name: str, quiet: bool = False) -> None:
 def uninstall(name: str) -> None:
     if name == "claude-code":
         print(f"  removed {unlink_skills(HOME / '.claude' / 'skills')} skill links")
+        print(f"  removed {unlink_skills(HOME / '.claude' / 'agents')} sub-agent links")
         identity.remove_block(HOME / ".claude" / "CLAUDE.md")
         run(["claude", "mcp", "remove", "--scope", "user", "jarvis"])
         claude_hooks(False, HOME / ".claude" / "settings.json")

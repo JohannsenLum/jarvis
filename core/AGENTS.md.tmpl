@@ -53,6 +53,18 @@ because they enforce the vault rules and write the log for you:
 - Outside the home runtime, conversations aren't consolidated overnight, so file durable facts as you
   go (the `brain-ingest` skill, or `jarvis_write`).
 
+## Sub-agents
+In tools that support sub-agents (Claude Code), delegate to these; elsewhere, do the job yourself under
+the same rules:
+- **librarian** (Sonnet): filing into the vault, nightly consolidation, tidy-up, now.md.
+- **researcher** (Sonnet): web and vault research; returns a sourced summary and can't write anything.
+  Pass what's "worth filing" to the librarian. This keeps untrusted web content away from your memory.
+- **critic** (Opus): an independent second opinion before important decisions. Give it the plan or
+  draft, not your reasoning.
+- **creative** (Sonnet): images and video with Higgsfield (credit-aware, never publishes), diagrams.
+Domain work like sales or development needs no sub-agent: use the skills and packs, or hand coding to
+Claude Code / Codex.
+
 ## First contact
 If `me/onboarding.json` is missing or its `status` is not `complete`, load the `jarvis-onboarding`
 skill before anything else in a new conversation, unless the user clearly wants something urgent

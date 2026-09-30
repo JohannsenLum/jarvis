@@ -124,6 +124,7 @@ unless you say its name, hold the key, or turn on the open mic.
 core/                 identity template, roles, jarvis_core (vault rules, recall, identity rendering)
 mcp/jarvis_mcp.py     Jarvis MCP server (every harness)
 hooks/                recall hook + plugin hooks.json
+agents/               Claude Code sub-agents: librarian, researcher, critic, creative
 skills/jarvis/        onboarding, settings, connections, telegram, import, models, brain, routines…
 skills/packs/         agency · employee · ceo · freelancer skill packs
 skills/vendor/        third-party skills (fireworks-tech-graph)
@@ -135,6 +136,19 @@ knowledge/            your vault (Obsidian)
 .claude-plugin/       plugin + marketplace manifests
 setup.sh              guided setup (Hermes home + other harnesses)
 ```
+
+## Sub-agents
+
+Four workers Jarvis hands jobs to in Claude Code (elsewhere Jarvis does these jobs itself, same rules).
+Each exists for a structural reason (a clean context, limited permissions, a different model, or
+independence), not for domain knowledge, which lives in skills.
+
+| Sub-agent | Job | Model | Can't |
+|---|---|---|---|
+| librarian | File into the vault, nightly consolidation, tidy-up | Sonnet 5 | browse the web, send, delete |
+| researcher | Web and vault research, sourced summaries | Sonnet 5 | write anything (keeps untrusted web content away from memory) |
+| critic | Independent second opinion, pre-mortems | Opus 5.5 | change anything |
+| creative | Higgsfield images and video, diagrams | Sonnet 5 | publish, or spend credits without a yes or a standing budget |
 
 ## Connections
 
