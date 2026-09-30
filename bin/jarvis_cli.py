@@ -226,6 +226,9 @@ def render_instance(quiet: bool = False) -> None:
     link_agents(root / ".claude" / "agents", quiet)
     json_merge(root / ".mcp.json", lambda d: d.setdefault("mcpServers", {}).__setitem__("jarvis", mcp_entry()))
     claude_hooks(True, root / ".claude" / "settings.json")
+    # Jarvis's own tools don't need a click each time (they enforce the vault rules themselves)
+    json_merge(root / ".claude" / "settings.json", lambda d: d.setdefault("permissions", {}).__setitem__(
+        "allow", sorted(set(d.get("permissions", {}).get("allow", [])) | {"mcp__jarvis"})))
     args = ", ".join(json.dumps(a) for a in MCP_CMD[1:])
     text_block(root / ".codex" / "config.toml", f'[mcp_servers.jarvis]\ncommand = {json.dumps(MCP_CMD[0])}\nargs = [{args}]')
     set_mcp_json(root / ".gemini" / "settings.json")

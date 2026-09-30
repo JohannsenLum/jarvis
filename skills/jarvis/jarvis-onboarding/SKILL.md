@@ -73,8 +73,23 @@ say 'pause' whenever you like. I'll pick up where we left off."*
   skipped question is guessed or invented.
 - "Pause": save, say how to resume ("say *finish onboarding*"), stop.
 
-**Save as you go.** After every chapter write `me/onboarding.json` (`status: "in_progress"`,
-`current_step`), so a dropped chat loses nothing.
+**Keep the machinery out of sight.** The user should see a conversation, not file edits.
+- Save answers with the `jarvis_onboarding` tool (a `patch`), never by editing `me/onboarding.json`
+  with file tools (that prints raw JSON diffs). Create pages with `jarvis_write`. Don't announce saves.
+- Save at the end of each chapter (`status: "in_progress"`, `current_step`), or every two or three
+  answers in a long chapter, so a dropped chat loses little.
+- After an answer, reply in one message: a short reaction, anything it just created, and the next
+  question. No extra turns in between.
+
+**Every answer does something visible.** When an answer names things (clients, people, a company),
+create their pages right away and show them in the same message as the next question:
+
+```
++ work/twiss/clients/brightlabs/overview.md
++ work/twiss/clients/nomi/overview.md
+```
+
+Then one line on what it unlocks. Answers that only set preferences get a one-line reaction instead.
 
 **Never ask for keys, tokens or passwords in chat.** Tell the user where to put them.
 
@@ -91,8 +106,20 @@ those, in step order, removing each from `pending` once answered.
 type (`user.*`, `work`, and `current_step`). Never ask those again: confirm them in one line in the
 opening and continue from `current_step`.
 
+### Getting ready (silently, before the opening)
+In one go, with no commentary, gather what lets you offer pickers instead of blank questions:
+- `python3 <Jarvis dir>/bin/scan_folders.py --time-limit 20` (names and counts only, no contents):
+  likely client, project and company folder names. Keep the result for Chapter 2 and Chapter 5.
+- Company hints: the domain of `git config user.email` (e.g. `twiss.io` → "Twiss"), and folder names.
+- Is Obsidian installed (`/Applications/Obsidian.app`)?
+
 ### Opening (before Chapter 1)
-Three short lines, in the chosen tone if known:
+If Obsidian is installed, start by offering (question tool): "Want to watch your second brain grow
+while we talk?" `Yes, open it in Obsidian`, `Not now`. Yes: run
+`open "obsidian://open?path=<url-encoded vault path>"`. If that doesn't show the vault (first time),
+tell them: Obsidian → "Open folder as vault" → pick `knowledge`. Suggest the graph view.
+
+Then three short lines, in the chosen tone if known:
 1. Who you are and what you're about to do: "I'm <assistant name>. Give me eight minutes and I'll know
    your work, your people and what matters to you, and I'll set up your mornings."
 2. Everything is plain files they own, in `knowledge/`, readable in Obsidian.
@@ -131,10 +158,12 @@ Batch A (skip work if the installer asked it):
 - "Any of these too?" multi-select: `Learning`, `Creative work`, `Travel`, `Faith & reflection`
 
 Then, only for the work types chosen, one question at a time (picker when you have suggestions):
-- Agency: company name · current clients (comma-separated)
+- Agency: company name (picker: the git email domain and company-looking folder names, e.g. `Twiss`)
+  · current clients (multi-select picker of client-looking folder names from the scan, Other to add;
+  plain question if the scan found none)
 - Employee: company and role
 - Founder/CEO: company name · stage (`Seed or earlier`, `Series A+`, `Bootstrapped`, `Skip for now`)
-- Freelancer: current clients
+- Freelancer: current clients (same picker as agency clients)
 - Student: where and what
 Then, on its own: "Who matters most in your life? Name and relationship, e.g. Sam (partner), Mum,
 Wei Ling (close friend), David (mentor)." (open; if contacts are connected, offer frequent names as a
