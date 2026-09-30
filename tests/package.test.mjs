@@ -1,0 +1,31 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+
+test('packed installer creates an isolated instance and preserves it on re-run', {timeout: 60000}, t => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'jarvis-package-'));
+  t.after(() => fs.rmSync(tmp, {recursive: true, force: true}));
+  const env = {HOME: tmp, PATH: process.env.PATH, TMPDIR: tmp, PYTHONDONTWRITEBYTECODE: '1', npm_config_cache: path.join(tmp, 'cache')};
+  const run = (exe, args, cwd = tmp) => execFileSync(exe, args, {cwd, env, encoding: 'utf8', timeout: 45000});
+  const pack = JSON.parse(run('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', tmp], repo))[0];
+  const files = pack.files.map(x => x.path);
+  for (const file of ['bin/create-jarvis.mjs', 'office/security.mjs', 'core/jarvis_core/vault.py', 'framework.json', 'knowledge/SCHEMA.md', 'LICENSE']) assert.ok(files.includes(file), file);
+  assert.ok(!files.some(f => f.includes('.env') && f !== 'deps.env'));
+  assert.ok(!files.includes('knowledge/me/onboarding.json'));
+  run('tar', ['-xzf', path.join(tmp, pack.filename), '-C', tmp]);
+  const instance = path.join(tmp, 'My Jarvis');
+  const args = [path.join(tmp, 'package/bin/create-jarvis.mjs'), '--yes', '--dir', instance, '--name', 'Demo', '--no-git', '--no-link', '--no-office'];
+  run(process.execPath, args);
+  assert.ok(fs.existsSync(path.join(instance, '.jarvis/office/security.mjs')));
+  assert.ok(fs.existsSync(path.join(instance, 'CLAUDE.md')));
+  const onboarding = JSON.parse(fs.readFileSync(path.join(instance, 'knowledge/me/onboarding.json')));
+  assert.equal(onboarding.user.name, 'Demo');
+  const marker = path.join(instance, 'knowledge/now.md'); fs.writeFileSync(marker, 'Keep my notes');
+  run(process.execPath, args);
+  assert.equal(fs.readFileSync(marker, 'utf8'), 'Keep my notes');
+});

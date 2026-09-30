@@ -2666,9 +2666,6 @@ async function renderFrames(arguments_) {
   const fps = Number(arguments_.fps);
   const width = Number(arguments_.width);
   const height = Number(arguments_.height);
-  if (!fs.existsSync(input) || !fs.statSync(input).isFile()) {
-    throw new Error(`Input does not exist: ${input}`);
-  }
   if (!fs.existsSync(framesDirectory) || !fs.statSync(framesDirectory).isDirectory()) {
     throw new Error(`Frames directory does not exist: ${framesDirectory}`);
   }
@@ -2685,7 +2682,13 @@ async function renderFrames(arguments_) {
     throw new Error("Output must stay within 4096px per side and 16 megapixels");
   }
 
-  const svg = fs.readFileSync(input, "utf8");
+  // Jarvis downstream hardening: validate the opened file, not a pathname checked earlier.
+  const inputFd = fs.openSync(input, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK);
+  let svg;
+  try {
+    if (!fs.fstatSync(inputFd).isFile()) throw new Error(`Input is not a regular file: ${input}`);
+    svg = fs.readFileSync(inputFd, "utf8");
+  } finally { fs.closeSync(inputFd); }
   const viewBoxMatch = svg.match(/viewBox="([^"]+)"/i);
   if (!viewBoxMatch) {
     throw new Error("SVG viewBox is unavailable");

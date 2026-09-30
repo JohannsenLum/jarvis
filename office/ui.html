@@ -377,7 +377,13 @@ body.ops-mode{--bg:#0d0d0f;--surface:#111113;--ink:#e8e1df;--ink-2:#a3999d;--lin
 <script src="/office-scene.js"></script>
 <script src="/ops-view.js"></script>
 <script>
-const TOKEN = "__UI_TOKEN__";
+let TOKEN = "";
+try {
+  const supplied = new URLSearchParams(location.hash.slice(1)).get("token");
+  if (supplied && /^[a-f0-9]{48}$/.test(supplied)) sessionStorage.setItem("jarvis-office-token", supplied);
+  TOKEN = sessionStorage.getItem("jarvis-office-token") || "";
+} catch { TOKEN = new URLSearchParams(location.hash.slice(1)).get("token") || ""; }
+if (location.hash) history.replaceState(null, "", location.pathname + location.search);
 const DESK = {
   librarian: { icon: "📚", label: "Librarian", job: "files and tidies the vault" },
   researcher: { icon: "🔍", label: "Researcher", job: "web and vault research" },
@@ -667,9 +673,10 @@ function nodeAt(pt) { let best = null, bd = 144 / (G.view.k * G.view.k); for (co
 })();
 
 function connect() {
+  if (!TOKEN) { $("sub").textContent = "Run jarvis office to open an authenticated dashboard."; return; }
   const es = new EventSource(`/stream?t=${TOKEN}`);
   es.onmessage = (ev) => { state = JSON.parse(ev.data); render(); };
-  es.onerror = () => { $("live").classList.remove("on"); $("sub").textContent = "reconnecting…"; };
+  es.onerror = () => { $("live").classList.remove("on"); $("sub").textContent = "Disconnected. If Jarvis restarted, run jarvis office to reconnect."; };
 }
 connect();
 </script>

@@ -4,6 +4,7 @@
 // - Plan usage (5-hour / 7-day %): samples the Claude desktop app records, when it's installed.
 // - Vault, routines, activity, system: files and commands on this Mac. Nothing leaves it.
 import fs from "node:fs";
+import { safeFile } from "./security.mjs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -115,7 +116,7 @@ function vaultStats(vault) {
     for (const d of list) {
       if (d.name.startsWith(".") || ["_templates", "raw", "inbox"].includes(d.name) && !rel) continue;
       if (d.isDirectory()) walk(path.join(dir, d.name), rel + d.name + "/");
-      else if (d.name.endsWith(".md")) pages++;
+      else if (d.isFile() && d.name.endsWith(".md")) pages++;
     }
   };
   walk(vault);
@@ -124,16 +125,16 @@ function vaultStats(vault) {
   try { for (const w of fs.readdirSync(path.join(vault, "work"))) { try { clients += fs.readdirSync(path.join(vault, "work", w, "clients")).filter((f) => !f.startsWith(".")).length; } catch { /* none */ } } } catch { /* none */ }
   let log = [];
   try {
-    log = fs.readFileSync(path.join(vault, "log.md"), "utf8").split("\n").filter((l) => l.startsWith("## ["))
+    log = fs.readFileSync(safeFile(vault, "log.md", [".md", ".json"]), "utf8").split("\n").filter((l) => l.startsWith("## ["))
       .map((l) => { const m = l.match(/^## \[(\d{4}-\d{2}-\d{2})\]\s*(\w+)\s*\|\s*(.*)$/); return m ? { date: m[1], kind: m[2], text: m[3] } : null; }).filter(Boolean);
   } catch { /* none */ }
   const weekAgo = dayKey(Date.now() - 7 * 864e5);
   let proposals = 0;
-  try { proposals = (fs.readFileSync(path.join(vault, "me", "_proposals.md"), "utf8").match(/^## /gm) || []).length; } catch { /* none */ }
+  try { proposals = (fs.readFileSync(safeFile(vault, "me/_proposals.md", [".md", ".json"]), "utf8").match(/^## /gm) || []).length; } catch { /* none */ }
   let onboarding = null;
-  try { const o = JSON.parse(fs.readFileSync(path.join(vault, "me", "onboarding.json"), "utf8")); onboarding = { status: o.status, step: o.current_step, pending: (o.pending || []).length, connections: o.connections || {} }; } catch { /* none */ }
+  try { const o = JSON.parse(fs.readFileSync(safeFile(vault, "me/onboarding.json", [".md", ".json"]), "utf8")); onboarding = { status: o.status, step: o.current_step, pending: (o.pending || []).length, connections: o.connections || {} }; } catch { /* none */ }
   let nowUpdated = null;
-  try { nowUpdated = (fs.readFileSync(path.join(vault, "now.md"), "utf8").match(/Updated:\s*(\d{4}-\d{2}-\d{2})/) || [])[1] || null; } catch { /* none */ }
+  try { nowUpdated = (fs.readFileSync(safeFile(vault, "now.md", [".md", ".json"]), "utf8").match(/Updated:\s*(\d{4}-\d{2}-\d{2})/) || [])[1] || null; } catch { /* none */ }
   return { pages, people: count("relationships/people"), clients, changesThisWeek: log.filter((l) => l.date >= weekAgo).length,
            recent: log.slice(-6).reverse(), proposals, onboarding, nowUpdated };
 }
@@ -142,7 +143,7 @@ function vaultStats(vault) {
 function routines(vault) {
   const list = [];
   try {
-    const text = fs.readFileSync(path.join(vault, "me", "routines.md"), "utf8");
+    const text = fs.readFileSync(safeFile(vault, "me/routines.md", [".md", ".json"]), "utf8");
     for (const m of text.matchAll(/^##\s+([^:\n]+):\s*(on|off)\b([^\n]*)$/gim)) {
       list.push({ name: m[1].trim(), on: m[2].toLowerCase() === "on", when: m[3].replace(/^[,\s]+/, "").trim() });
     }
