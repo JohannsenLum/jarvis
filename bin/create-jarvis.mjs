@@ -175,10 +175,14 @@ async function main() {
   for (const keep of ["inbox", "raw"]) fs.writeFileSync(path.join(kv, keep, ".gitkeep"), "");
 
   // 2. Wire it up (identity, skills, sub-agents, MCP, recall) with the framework's own CLI
-  const answersFile = path.join(os.tmpdir(), `jarvis-answers-${process.pid}.json`);
-  fs.writeFileSync(answersFile, JSON.stringify(answers));
-  const r = spawnSync("python3", [path.join(dir, ".jarvis", "bin", "jarvis_cli.py"), "init-instance", answersFile], { stdio: "inherit" });
-  fs.rmSync(answersFile, { force: true });
+  const answersDir = fs.mkdtempSync(path.join(os.tmpdir(), "jarvis-answers-"));
+  fs.chmodSync(answersDir, 0o700);
+  const answersFile = path.join(answersDir, "answers.json");
+  let r;
+  try {
+    fs.writeFileSync(answersFile, JSON.stringify(answers), { mode: 0o600, flag: "wx" });
+    r = spawnSync("python3", [path.join(dir, ".jarvis", "bin", "jarvis_cli.py"), "init-instance", answersFile], { stdio: "inherit" });
+  } finally { fs.rmSync(answersDir, { recursive: true, force: true }); }
   if (r.status !== 0) { console.error("  Setup of the folder failed (see above)."); process.exit(1); }
 
   // 3. Your folder, your private git repo

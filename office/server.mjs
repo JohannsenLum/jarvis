@@ -18,6 +18,7 @@ import crypto from "node:crypto";
 import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ops } from "./ops.mjs";
+import { allowedRequest, safePage, readBody, mac, validMac } from "./security.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
@@ -31,13 +32,12 @@ const VAULT = fs.existsSync(path.join(ROOT, "knowledge")) ? path.join(ROOT, "kno
 const DESKS = ["librarian", "researcher", "critic", "creative"];
 const TMUX = ["/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"].find((p) => fs.existsSync(p)) || "tmux";
 
-// Tokens: HOOK_TOKEN for the approval hook (file, 0600); UI_TOKEN embedded in the page we serve, so other
-// websites can't post to this server.
+// Secrets stay in owner-only files. Browser access is bootstrapped by the CLI using a URL fragment.
 fs.mkdirSync(STATE_DIR, { recursive: true, mode: 0o700 });
+fs.chmodSync(STATE_DIR, 0o700);
 const HOOK_TOKEN = crypto.randomBytes(24).toString("hex");
 const UI_TOKEN = crypto.randomBytes(24).toString("hex");
-fs.writeFileSync(path.join(STATE_DIR, "hook-token"), HOOK_TOKEN, { mode: 0o600 });
-fs.writeFileSync(path.join(STATE_DIR, "port"), String(PORT), { mode: 0o600 });
+const hookNonces = new Map();
 
 // ---------- transcripts ----------
 const cache = new Map();                       // file -> { size, mtime, entries }
@@ -175,8 +175,8 @@ function vaultGraph() {
       if (d.name.startsWith(".") || (!rel && ["_templates", "raw"].includes(d.name))) continue;
       const r = rel + d.name;
       if (d.isDirectory()) walk(path.join(dir, d.name), r + "/");
-      else if (d.name.endsWith(".md") && nodes.length < 3000) {
-        let text = ""; try { text = fs.readFileSync(path.join(dir, d.name), "utf8").slice(0, 200000); } catch { /* skip */ }
+      else if (d.isFile() && d.name.endsWith(".md") && nodes.length < 3000) {
+        let text = ""; try { text = fs.readFileSync(safePage(VAULT, r), "utf8").slice(0, 200000); } catch { /* skip */ }
         const title = (text.match(/^#\s+(.+)$/m) || [])[1] || d.name.slice(0, -3);
         const node = { id: r, title, folder: rel.split("/")[0] || "(root)" };
         nodes.push(node);
@@ -266,7 +266,7 @@ function snapshot() {
   });
   const visitors = agents.filter((a) => !DESKS.includes(a.type)).sort((a, b) => b.updated - a.updated).slice(0, 6);
   let now = "";
-  if (VAULT) { try { now = fs.readFileSync(path.join(VAULT, "now.md"), "utf8").replace(/^---[\s\S]*?---\n/, "").slice(0, 1500); } catch { /* none */ } }
+  if (VAULT) { try { now = fs.readFileSync(safePage(VAULT, "now.md"), "utf8").replace(/^---[\s\S]*?---\n/, "").slice(0, 1500); } catch { /* none */ } }
   const kanban = board(s ? readJsonl(s.p).entries : [], agents, now);
   const sc = screen();
   // Answered in the terminal: the prompt is gone from the screen, so drop the dashboard card too.
@@ -332,6 +332,7 @@ function askDashboard(hook, res) {
 // Obsidian only opens folders it already knows as vaults. Add the Jarvis vault to its list (once, with a
 // backup of Obsidian's settings), then open the vault or a page with an obsidian:// link.
 function openInObsidian(rel) {
+  if (rel) safePage(VAULT, rel);
   if (!VAULT) return { ok: false, message: "This folder has no vault." };
   if (!fs.existsSync("/Applications/Obsidian.app")) return { ok: false, message: "Obsidian isn't installed. Get it free at obsidian.md, or use the graph view here." };
   const cfgPath = path.join(os.homedir(), "Library", "Application Support", "obsidian", "obsidian.json");
@@ -368,11 +369,13 @@ function openInObsidian(rel) {
 
 // ---------- restart when updated ----------
 // `jarvis update` replaces these files; restart so the dashboard always runs the code it serves.
-const OWN = ["server.mjs", "ops.mjs"].map((f) => path.join(HERE, f));
+const OWN = ["server.mjs", "ops.mjs", "security.mjs"].map((f) => path.join(HERE, f));
 const stamp = () => OWN.map((f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } }).join(",");
 const startedWith = stamp();
+let restarting = false;
 setInterval(() => {
-  if (stamp() === startedWith) return;
+  if (restarting || stamp() === startedWith) return;
+  restarting = true;
   server.close(); server.closeAllConnections?.();
   const log = fs.openSync(path.join(STATE_DIR, "server.log"), "a");
   setTimeout(() => {
@@ -392,22 +395,28 @@ function broadcast(force = true) {
 }
 setInterval(() => broadcast(false), 1000);
 
-function body(req) {
-  return new Promise((resolve, reject) => {
-    let s = "";
-    req.on("data", (c) => { s += c; if (s.length > 1e6) req.destroy(); });
-    req.on("end", () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } });
-  });
+async function body(req) {
+  const raw = await readBody(req);
+  let value;
+  try { value = JSON.parse(raw || "{}"); } catch { const e = new Error("Invalid JSON"); e.status = 400; throw e; }
+  if (!value || typeof value !== "object" || Array.isArray(value)) { const e = new Error("Expected an object"); e.status = 400; throw e; }
+  return value;
 }
 
 const send = (res, code, obj) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(obj)); };
 const sameOrigin = (req) => !req.headers.origin || req.headers.origin === `http://127.0.0.1:${PORT}` || req.headers.origin === `http://localhost:${PORT}`;
 
 const server = http.createServer(async (req, res) => {
-  const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Content-Security-Policy", "frame-ancestors 'none'; base-uri 'none'; object-src 'none'");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Cache-Control", "no-store");
+  if (!allowedRequest(req, PORT)) return send(res, 403, { error: "forbidden" });
   try {
+    const url = new URL(req.url, `http://127.0.0.1:${PORT}`);
     if (req.method === "GET" && url.pathname === "/") {
-      const html = fs.readFileSync(path.join(HERE, "ui.html"), "utf8").replace("__UI_TOKEN__", UI_TOKEN);
+      const html = fs.readFileSync(path.join(HERE, "ui.html"), "utf8");
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       return res.end(html);
     }
@@ -427,15 +436,25 @@ const server = http.createServer(async (req, res) => {
     if (req.method === "GET" && (url.pathname === "/api/graph" || url.pathname === "/api/note")) {
       if (url.searchParams.get("t") !== UI_TOKEN) return send(res, 403, { error: "forbidden" });
       if (url.pathname === "/api/graph") return send(res, 200, vaultGraph());
-      const rel = String(url.searchParams.get("path") || ""), full = path.resolve(VAULT || "/nonexistent", rel);
-      if (!VAULT || !full.startsWith(path.resolve(VAULT) + path.sep) || !full.endsWith(".md")) return send(res, 400, { error: "not a vault page" });
+      const rel = String(url.searchParams.get("path") || "");
+      let full;
+      try { full = safePage(VAULT, rel); } catch { return send(res, 400, { error: "not a vault page" }); }
       try { return send(res, 200, { path: rel, text: fs.readFileSync(full, "utf8").slice(0, 6000) }); } catch { return send(res, 404, { error: "not found" }); }
     }
     if (req.method === "POST" && url.pathname === "/hook/permission") {
-      if (req.headers.authorization !== `Bearer ${HOOK_TOKEN}`) return send(res, 403, { error: "forbidden" });
-      const decision = await askDashboard(await body(req), res);
+      const nonce = req.headers["x-jarvis-nonce"], at = req.headers["x-jarvis-time"];
+      const now = Date.now();
+      for (const [key, expires] of hookNonces) if (expires < now) hookNonces.delete(key);
+      if (typeof nonce !== "string" || !/^[a-f0-9]{48}$/.test(nonce) || typeof at !== "string" || !/^\d{13}$/.test(at) || Math.abs(now - Number(at)) > 30000 || hookNonces.has(nonce)) return send(res, 403, { error: "forbidden" });
+      const raw = await readBody(req);
+      if (!validMac(req.headers["x-jarvis-signature"], mac(HOOK_TOKEN, "request", nonce, at, raw)) || hookNonces.has(nonce)) return send(res, 403, { error: "forbidden" });
+      let hook;
+      try { hook = JSON.parse(raw); } catch { return send(res, 400, { error: "Invalid JSON" }); }
+      if (!hook || typeof hook !== "object" || Array.isArray(hook)) return send(res, 400, { error: "Expected an object" });
+      hookNonces.set(nonce, now + 60000);
+      const decision = await askDashboard(hook, res);
       if (res.destroyed) return;
-      return send(res, 200, { decision });
+      return send(res, 200, { decision, signature: mac(HOOK_TOKEN, "response", nonce, decision) });
     }
     if (req.method === "POST" && url.pathname.startsWith("/api/")) {
       if (!sameOrigin(req) || req.headers["x-office-token"] !== UI_TOKEN) return send(res, 403, { error: "forbidden" });
@@ -459,10 +478,22 @@ const server = http.createServer(async (req, res) => {
     }
     send(res, 404, { error: "not found" });
   } catch (e) {
-    send(res, 500, { error: String(e.message || e) });
+    if (!res.destroyed && !res.headersSent) {
+      if (e.status === 413) { res.setHeader("Connection", "close"); res.on("finish", () => req.destroy()); }
+      send(res, e.status || 500, { error: e.status ? e.message : "Request failed" });
+    }
   }
 });
 
+server.requestTimeout = 15000;
+server.headersTimeout = 10000;
+server.maxConnections = 64;
 server.listen(PORT, "127.0.0.1", () => {
+  // Publish only after the port belongs to us; failed starts cannot replace active credentials.
+  for (const [name, value] of [["hook-token", HOOK_TOKEN], ["ui-token", UI_TOKEN], ["port", String(PORT)]]) {
+    const tmp = path.join(STATE_DIR, `${name}.${process.pid}.tmp`);
+    fs.writeFileSync(tmp, value, { mode: 0o600, flag: "wx" });
+    fs.renameSync(tmp, path.join(STATE_DIR, name));
+  }
   console.log(`Jarvis Office: http://127.0.0.1:${PORT}  (folder ${ROOT}, tmux session "${TMUX_SESSION}")`);
 });

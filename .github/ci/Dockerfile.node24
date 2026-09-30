@@ -1,0 +1,9 @@
+# Toolchains only: no project code, dependency downloads, or credentials in this image.
+ARG NODE_IMAGE=node:24-bookworm@sha256:64af3819f9275802414d7cdc38c27e9d82bd564dec4d4da87d008255d36c63b4
+ARG PYTHON_IMAGE=python:3.13-bookworm@sha256:227b6570d6ee07061ae6ca2eb04dedfb6d2b34045835f343065b9869e4d427ea
+FROM ${NODE_IMAGE} AS node
+FROM ${PYTHON_IMAGE}
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s ../lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
+WORKDIR /src

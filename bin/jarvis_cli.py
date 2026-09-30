@@ -579,7 +579,13 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     url = f"http://127.0.0.1:{port}"
     if _office_up(port):
         print(f"✓ Office dashboard: {url}")
-        subprocess.run(["open", url], capture_output=True)
+        try:
+            token = (OFFICE_DIR / "ui-token").read_text().strip()
+        except OSError:
+            raise SystemExit("Dashboard token unavailable. Restart with jarvis office.")
+        if not re.fullmatch(r"[a-f0-9]{48}", token):
+            raise SystemExit("Invalid dashboard token. Restart with jarvis office.")
+        subprocess.run(["open", f"{url}/#token={token}"], capture_output=True)
     else:
         log_tail = ""
         try:

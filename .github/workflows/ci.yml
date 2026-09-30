@@ -1,0 +1,46 @@
+name: CI
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    name: Tests (${{ matrix.runtime }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: Node 22 / Python 3.11
+            dockerfile: .github/ci/Dockerfile
+          - runtime: Node 24 / Python 3.13
+            dockerfile: .github/ci/Dockerfile.node24
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Prepare pinned toolchains
+        env:
+          DOCKERFILE: ${{ matrix.dockerfile }}
+        run: docker build -f "$DOCKERFILE" -t jarvis-ci .github/ci
+      - name: Syntax, regression, dashboard and packed-installer tests (offline sandbox)
+        run: bash scripts/test-isolated.sh jarvis-ci
+  ci:
+    name: CI passed
+    if: always()
+    needs: [test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Require every matrix entry to pass
+        env:
+          RESULT: ${{ needs.test.result }}
+        run: test "$RESULT" = success

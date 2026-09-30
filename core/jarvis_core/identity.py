@@ -21,7 +21,11 @@ END = "<!-- JARVIS:END -->"
 
 def settings() -> dict:
     user = vault.onboarding().get("user", {}) or {}
-    return {k: (user.get(k) or v) for k, v in DEFAULTS.items()}
+    if not isinstance(user, dict):
+        user = {}
+    allowed = {"role": ROLES, "tone": TONES, "autonomy": AUTONOMY}
+    # Onboarding is writable independently of set_settings; validate at the read boundary.
+    return {k: user[k] if user.get(k) in allowed[k] else v for k, v in DEFAULTS.items()}
 
 
 def set_settings(role: str | None = None, tone: str | None = None, autonomy: str | None = None) -> dict:

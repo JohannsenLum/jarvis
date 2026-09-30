@@ -19,6 +19,8 @@ import re
 import time
 from pathlib import Path
 
+from .vault import resolve, VaultError
+
 NOW_LIMIT = 1800          # characters of now.md injected on the first turn
 EXCERPT_LIMIT = 320       # characters per matched page
 MAX_MATCHES = 3
@@ -71,8 +73,9 @@ def _rescan(root: Path) -> None:
             continue
         for page in base.rglob("*.md"):
             try:
+                page = resolve(page.relative_to(root).as_posix())
                 text = page.read_text(errors="ignore")
-            except OSError:
+            except (OSError, ValueError, VaultError):
                 continue
             for name in _names_for(page, text):
                 entries.append((re.compile(rf"(?<![\w-]){re.escape(name)}(?![\w-])", re.I), name, page))
@@ -81,6 +84,7 @@ def _rescan(root: Path) -> None:
 
 
 def _excerpt(page: Path) -> str:
+    page = resolve(page.relative_to(vault().resolve()).as_posix())
     _, body = _split_frontmatter(page.read_text(errors="ignore"))
     body = re.sub(r"^#.*$", "", body, flags=re.M)
     body = re.sub(r"\n{2,}", "\n", body).strip()
@@ -97,13 +101,13 @@ def _text(user_message) -> str:
 
 def recall_text(user_message="", is_first_turn=False, **_kwargs):
     try:
-        root = vault()
+        root = vault().resolve()
         if not root.exists():
             return None
         parts: list[str] = []
 
         if is_first_turn:
-            now = root / "now.md"
+            now = resolve("now.md")
             if now.exists():
                 _, body = _split_frontmatter(now.read_text(errors="ignore"))
                 body = body.strip()
@@ -119,8 +123,12 @@ def recall_text(user_message="", is_first_turn=False, **_kwargs):
             if page in seen or not pattern.search(message):
                 continue
             seen.add(page)
+            try:
+                page = resolve(page.relative_to(root).as_posix())
+            except (OSError, ValueError, VaultError):
+                continue
             rel = page.relative_to(root).as_posix()
-            if rel.startswith(POINTER_ONLY):
+            if rel.casefold().startswith(POINTER_ONLY):
                 notes.append(f"- {rel} (private; open only if needed for this request)")
             else:
                 notes.append(f"- {rel}: {_excerpt(page)}")

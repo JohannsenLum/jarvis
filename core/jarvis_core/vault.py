@@ -30,6 +30,15 @@ def today() -> str:
 def resolve(rel: str) -> Path:
     root = config.vault().resolve()
     rel = (rel or "").strip().lstrip("/")
+    # Reject hidden aliases and symlinks before resolution erases that information.
+    parts = Path(rel).parts
+    if any(part.startswith(".") and part not in (".", "..") for part in parts):
+        raise VaultError(f"'{rel}' is a hidden path; hidden files aren't part of the vault.")
+    current = root
+    for part in parts:
+        current = current / part
+        if current.is_symlink():
+            raise VaultError("Symlinks aren't supported inside the vault.")
     path = (root / rel).resolve()
     if path != root and root not in path.parents:
         raise VaultError(f"'{rel}' is outside the vault.")
@@ -43,7 +52,7 @@ def rel_of(path: Path) -> str:
 
 
 def is_private(rel: str) -> bool:
-    return rel.startswith(PRIVATE)
+    return rel.casefold().startswith(PRIVATE)
 
 
 def read(rel: str, max_chars: int = 20_000) -> str:
@@ -69,15 +78,17 @@ def write(rel: str, content: str, mode: str = "replace", reason: str = "") -> st
     """mode: create (fail if exists) | replace | append."""
     if mode not in ("create", "replace", "append"):
         raise VaultError("mode must be create, replace or append.")
-    rel = rel.strip().lstrip("/")
     path = resolve(rel)
+    rel = path.relative_to(config.vault().resolve()).as_posix()
+    # macOS volumes are commonly case-insensitive; protect both spellings on every OS.
+    policy = rel.casefold()
     exists = path.exists()
-    if rel.startswith("raw/") and exists:
+    if policy.startswith("raw/") and exists:
         raise VaultError("Files in raw/ are never edited. Save a new source instead.")
-    if rel.startswith("me/") and rel not in ("me/onboarding.json", "me/_proposals.md"):
+    if policy.startswith("me/") and policy not in ("me/onboarding.json", "me/_proposals.md"):
         raise VaultError("me/ belongs to the user. Use jarvis_propose to suggest the change instead.")
-    if rel in ("log.md",) and mode != "append":
-        raise VaultError("log.md is append-only. Use jarvis_log.")
+    if policy in ("log.md", "me/_proposals.md") and mode != "append":
+        raise VaultError(f"{rel} is append-only. Use jarvis_log or jarvis_propose.")
     if path.suffix.lower() not in TEXT_SUFFIXES:
         raise VaultError(f"Only text files can be written ({', '.join(sorted(TEXT_SUFFIXES))}).")
     if mode == "create" and exists:
@@ -120,8 +131,12 @@ def search(query: str, limit: int = 10, include_private: bool = False) -> list[d
     for path in root.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
             continue
-        rel = rel_of(path)
-        if any(part.startswith(".") for part in Path(rel).parts) or rel.startswith("raw/"):
+        try:
+            resolve(path.relative_to(root).as_posix())
+            rel = rel_of(path)
+        except (VaultError, ValueError, OSError):
+            continue
+        if any(part.startswith(".") for part in Path(rel).parts) or rel.casefold().startswith("raw/"):
             continue
         try:
             text = path.read_text(errors="ignore")
@@ -145,7 +160,8 @@ def search(query: str, limit: int = 10, include_private: bool = False) -> list[d
 
 def onboarding() -> dict:
     try:
-        return json.loads(resolve("me/onboarding.json").read_text())
+        data = json.loads(resolve("me/onboarding.json").read_text())
+        return data if isinstance(data, dict) else {}
     except (OSError, ValueError, VaultError):
         return {}
 

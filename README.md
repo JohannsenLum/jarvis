@@ -1,5 +1,8 @@
 # Jarvis
 
+[![CI](https://github.com/JohannsenLum/jarvis/actions/workflows/ci.yml/badge.svg)](https://github.com/JohannsenLum/jarvis/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/JohannsenLum/jarvis/actions/workflows/codeql.yml/badge.svg)](https://github.com/JohannsenLum/jarvis/actions/workflows/codeql.yml)
+
 A personal assistant with a memory you own and a live dashboard you can work from.
 
 Jarvis keeps track of your work, people, goals and preferences in a plain Markdown vault. It helps you
@@ -98,7 +101,9 @@ cd ~/Jarvis
 jarvis office          # opens the dashboard; Claude runs in the background
 ```
 
-Open [the local dashboard](http://127.0.0.1:3777). It follows the Claude Code session in your Jarvis
+The command opens an authenticated dashboard at `http://127.0.0.1:3777`. Launch it through `jarvis office`
+rather than a shared or bookmarked URL; after a server restart, run the command again to reconnect.
+It follows the Claude Code session in your Jarvis
 folder, including its transcript, sub-agent runs, permission requests and terminal prompts. The
 assistant's identity and vault also work in other supported tools; this dashboard currently connects
 to Claude Code.
@@ -323,6 +328,16 @@ Hermes also brings its own dashboard (`hermes dashboard`: usage, sessions, cron)
   group chats.
 - Keys and tokens live in env files with mode 600 (for example `~/.hermes/.env`), never in the vault or chat.
 - Content from the web, email or documents is treated as information, not instructions.
+
+## Development and releases
+
+CI checks syntax, vault safeguards, dashboard authentication and installation from the packed package
+on Node 22/Python 3.11 and Node 24/Python 3.13 in isolated offline containers. CodeQL analyzes JavaScript
+and Python, and Dependabot proposes dependency/tooling updates. Version tags create draft GitHub
+releases with checksums after CI passes; no server deployment or npm publication runs automatically.
+
+See [production readiness and release instructions](docs/production-readiness.md) and the
+[security policy](SECURITY.md) for testing, coverage limits and responsible reporting.
 
 ## Platform
 
