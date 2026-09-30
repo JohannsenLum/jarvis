@@ -36,12 +36,17 @@
   const SEG_W = 2.3;
   const SEATS = [];
   const bench = (x0, gy, n, owners) => { for (let i = 0; i < n; i++) SEATS.push({ seg: [x0 + i * SEG_W, gy, SEG_W, 1.1], owner: owners[i] || null, kind: "bench", row: gy }); };
-  const Ldesk = (x, y) => SEATS.push({ seg: [x, y, 2.5, 1.05], owner: null, kind: "L", side: [x + 1.6, y + 1.05, 0.9, 1.7] });
+  // An L-desk seats two: one behind the long top, one in the corner of the L facing the side part.
+  const Ldesk = (x, y) => {
+    const host = SEATS.length, side = [x + 1.6, y + 1.05, 0.9, 1.7];
+    SEATS.push({ seg: [x, y, 2.5, 1.05], owner: null, kind: "L", side, seatAt: [x + 1.0, y - 0.22] });
+    SEATS.push({ seg: side, owner: null, kind: "L2", host, pos: [side[0] - 0.42, side[1] + 1.0] });
+  };
   if (BIG) {
     bench(1.8, 2.3, 5, ["librarian", "researcher", "creative"]);
     bench(1.8, 5.8, 5, ["critic"]);
     bench(1.8, 9.3, 5, []);
-    Ldesk(15.8, 3.1); Ldesk(18.6, 3.1); Ldesk(21.4, 3.1); Ldesk(15.8, 7.0); Ldesk(18.6, 7.0);
+    Ldesk(16.0, 3.2); Ldesk(19.6, 3.2);                                 // 15 bench seats + 4 at L-desks + Jarvis = 20
   } else {
     bench(2.0, 2.3, 4, ["librarian", "researcher", "creative", null]);
     bench(2.0, 6.0, 4, ["critic", null, null, null]);
@@ -336,12 +341,12 @@
     if (first) box(gx + 0.04, gy + d - 0.12, 0.08, 0.08, H - 6, "#FFFFFF");
     if (last) { box(gx + w - 0.12, gy + d - 0.12, 0.08, 0.08, H - 6, "#FFFFFF"); box(gx + w - 0.12, gy + 0.04, 0.08, 0.08, H - 6, "#FFFFFF"); }
     box(gx, gy, w, d, 6, "#E7C8A0", H - 6, { noRight: !last });
-    if (seat.side) { const [sx, sy, sw, sd] = seat.side; box(sx + sw - 0.12, sy + sd - 0.12, 0.08, 0.08, H - 6, "#FFFFFF"); box(sx, sy - 0.02, sw, sd + 0.02, 6, "#E7C8A0", H - 6); const pl = up(p(sx + sw * 0.5, sy + sd * 0.7), H); smallPlant(pl.x, pl.y, "#FFFFFF"); }
     // low divider between neighbours on a bench, in the occupant's colour
     const accent = occupant ? (ACCENT[occupant.type] || occupant.shirt) : "#D9C2A5";
     if (seat.kind === "bench" && !first) box(gx - 0.03, gy + 0.05, 0.06, d - 0.15, 18, "#EBD9C3", H);
     const top = (fx, fy) => up(p(gx + w * fx, gy + d * fy), H);
-    monitor(gx + w * 0.24, gy + d * 0.34, H, working, TINT[occupant?.type] || "#8FE3C8");
+    monitor(gx + w * (seat.seatAt ? 0.16 : 0.24), gy + d * 0.34, H, working, TINT[occupant?.type] || "#8FE3C8");
+    clutter(top, i, !occupant);
     poly([top(0.5, 0.56), top(0.7, 0.56), top(0.7, 0.76), top(0.5, 0.76)], "#FFFFFF", "rgba(0,0,0,.2)");
     if (occupant) {
       const m = top(0.86, 0.72), act = actors[occupant.id];
@@ -355,6 +360,43 @@
       });
     }
   }
+  function sideDesk(seat, i, occupant, mode) {
+    const [sx, sy, sw, sd] = seat.seg, H = 30, working = mode === "working";
+    shadow(sx, sy, sw, sd, 0.08, 0.14);
+    box(sx + sw - 0.12, sy + sd - 0.12, 0.08, 0.08, H - 6, "#FFFFFF"); box(sx + 0.04, sy + sd - 0.12, 0.08, 0.08, H - 6, "#FFFFFF");
+    box(sx, sy - 0.02, sw, sd + 0.02, 6, "#E7C8A0", H - 6);
+    const top = (fx, fy) => up(p(sx + sw * fx, sy + sd * fy), H);
+    monitor(sx + sw * 0.42, sy + sd * 0.3, H, working, TINT[occupant?.type] || "#8FE3C8");
+    poly([top(0.12, 0.5), top(0.45, 0.5), top(0.45, 0.66), top(0.12, 0.66)], "#FFFFFF", "rgba(0,0,0,.2)");
+    clutter(top, i, !occupant, true);
+    if (occupant) {
+      const m = top(0.5, 0.86), act = actors[occupant.id];
+      if (act && now < act.mugUntil && act.phase === "desk" && now > act.sipUntil) bigMug(m.x, m.y); else if (act && act.emptyMug) bigMug(m.x, m.y, true); else mug(m.x, m.y, ACCENT[occupant.type] || occupant.shirt, false);
+      alongX(sx + 0.05, sy + sd, H - 9, () => { rr(0, -8, 40, 9.5, 2.5, "#FFFFFF", "rgba(0,0,0,.2)"); rr(0, -8, 3.5, 9.5, 2, ACCENT[occupant.type] || occupant.shirt); ctx.fillStyle = "#334155"; ctx.font = "700 5.6px ui-monospace, Menlo, monospace"; ctx.fillText(occupant.label.slice(0, 10).toUpperCase(), 6, -1.5); });
+    }
+  }
+
+  // Little things that make each desk someone's: a different mix at every desk.
+  function clutter(top, i, empty, side) {
+    const pick = (n) => { let h = 2166136261; for (const ch of "desk" + i + ":" + n) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) % 9; };
+    const spots = side ? [[0.6, 0.15], [0.85, 0.6]] : [[0.42, 0.22], [0.92, 0.32]];
+    const items = empty ? [pick(1)] : [pick(1), pick(2)];            // themed agent desks already have a prop on the right
+    items.slice(0, empty ? 2 : 1).forEach((k, n) => {
+      const q = top(...spots[n]);
+      ({
+        0: () => { for (let j = 0; j < 3; j++) poly([{ x: q.x - 8 + j, y: q.y - 2 - j * 1.5 }, { x: q.x + 2 + j, y: q.y - 7 - j * 1.5 }, { x: q.x + 10 + j, y: q.y - 3 - j * 1.5 }, { x: q.x + j, y: q.y + 2 - j * 1.5 }], "#FFFFFF", "rgba(0,0,0,.15)"); },   // paper stack
+        1: () => { rr(q.x - 3.5, q.y - 9, 7, 9, 2, "#5B6472"); for (const [dx, c] of [[-2, "#E63946"], [0, "#2B6CB0"], [2, "#111"]]) rr(q.x + dx - 0.6, q.y - 15, 1.4, 7, 0.7, c); },               // pen cup
+        2: () => { rr(q.x - 7, q.y - 4, 7, 6, 1, "#FFD166"); rr(q.x + 1, q.y - 6, 7, 6, 1, "#FF8FB1"); rr(q.x - 3, q.y - 9, 7, 6, 1, "#7BE0AD"); },                                                   // sticky notes
+        3: () => { poly([{ x: q.x - 9, y: q.y }, { x: q.x + 1, y: q.y - 5 }, { x: q.x + 11, y: q.y }, { x: q.x + 1, y: q.y + 5 }], "#2C3E66"); poly([{ x: q.x - 7, y: q.y }, { x: q.x + 1, y: q.y - 4 }, { x: q.x + 3, y: q.y - 3 }, { x: q.x - 5, y: q.y + 1 }], "#FFFFFF"); },   // notebook
+        4: () => { rr(q.x - 5, q.y - 12, 10, 12, 1.5, "#7A553C"); rr(q.x - 3.5, q.y - 10.5, 7, 8, 1, "#A8E3D4"); circle(q.x, q.y - 7, 2, "#F4A261"); },                                            // photo frame
+        5: () => { rr(q.x - 3.5, q.y - 5, 7, 5, 1.5, "#E07A5F"); rr(q.x - 2, q.y - 14, 4, 10, 2, "#5BC27A"); rr(q.x - 5, q.y - 11, 3, 5, 1.5, "#4CAF6A"); rr(q.x + 2, q.y - 12, 3, 5, 1.5, "#4CAF6A"); }, // cactus
+        6: () => { poly([{ x: q.x - 7, y: q.y - 1 }, { x: q.x + 1, y: q.y - 5 }, { x: q.x + 8, y: q.y - 1 }, { x: q.x, y: q.y + 3 }], "#C9955F", "rgba(0,0,0,.2)"); rr(q.x - 3, q.y - 4, 7, 2, 1, "#FFFFFF"); ctx.strokeStyle = "#AAB4BE"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(q.x - 1, q.y - 5); ctx.lineTo(q.x + 2, q.y - 5); ctx.stroke(); },  // clipboard
+        7: () => { rr(q.x - 5, q.y - 3, 10, 3, 1, "#E26D8A"); rr(q.x - 4, q.y - 6, 9, 3, 1, "#4D8FE0"); rr(q.x - 5, q.y - 9, 10, 3, 1, "#E9C46A"); },                                                  // books
+        8: () => { ellipse(q.x, q.y - 1, 6, 2.5, "#AAB4BE"); rr(q.x - 1, q.y - 14, 2, 13, 1, "#5B6472"); ellipse(q.x + 4, q.y - 15, 6, 3, "#2C3E66"); },                                                // desk lamp
+      })[k]();
+    });
+  }
+
   function jarvisDesk(mode) {
     const [gx, gy, w, d] = JARVIS_DESK, H = 30, working = mode === "working";
     shadow(gx, gy, w, d);
@@ -455,8 +497,8 @@
     if (s.state === "working") return "working";
     return Date.now() - (s.updated || 0) < 10 * 60 * 1000 ? "done" : "idle";
   }
-  const seatG = (i) => { const [gx, gy, w] = SEATS[i].seg; return [gx + w * 0.62, gy - 0.22]; };
-  const behindG = (i) => { const [gx, gy, w] = SEATS[i].seg; return [gx + w * 0.62, gy - 0.62]; };
+  const seatG = (i) => { const st = SEATS[i]; if (st.pos) return st.pos; if (st.seatAt) return st.seatAt; const [gx, gy, w] = st.seg; return [gx + w * 0.62, gy - 0.22]; };
+  const behindG = (i) => { const [x, y] = seatG(i); return SEATS[i].pos ? [x - 0.45, y] : [x, y - 0.4]; };
   const JARVIS_SEAT = [JARVIS_DESK[0] + JARVIS_DESK[2] * 0.66, JARVIS_DESK[1] - 0.2];
   const JARVIS_STAND = [JARVIS_DESK[0] + JARVIS_DESK[2] * 0.55, JARVIS_DESK[1] + JARVIS_DESK[3] + 0.5];
 
@@ -582,7 +624,8 @@
       const o = byIndex[i], [gx, gy, w, d] = seat.seg, sg = seatG(i), sq = p(...sg);
       items.push({ depth: sg[0] + sg[1] - 0.05, fn: () => chair(sq.x, sq.y + 10, o ? mix(ACCENT[o.type] || o.shirt || "#8B6B5A", -0.25) : "#8B6B5A") });
       const mode = o ? modeOf(o.id, o.s) : "idle";
-      items.push({ depth: gx + w / 2 + gy + d / 2 + (seat.side ? 0.4 : 0), fn: () => seatDesk(seat, i, o, mode) });
+      if (seat.kind === "L2") items.push({ depth: gx + w / 2 + gy + d / 2, fn: () => sideDesk(seat, i, o, mode) });
+      else items.push({ depth: gx + w / 2 + gy + d / 2 + (seat.side ? 0.4 : 0), fn: () => seatDesk(seat, i, o, mode) });
       if (!o) return;
       const a = stepActor(o.id, behindG(i), mode, dt, true);
       const pl = placement(a, mode, o.s?.doing, sg, behindG(i));

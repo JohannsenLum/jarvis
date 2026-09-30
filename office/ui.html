@@ -466,7 +466,7 @@ let mounted = false;
 function renderOffice() {
   if (!mounted || !$("view").querySelector(".po-wrap")) {
     PixelOffice.mount($("view"), (id) => { selected = id; render(); });
-    $("view").insertAdjacentHTML("beforeend", '<div class="legend"><span>💬 waiting for you</span><span>⌨️ working</span><span>❗ needs you</span><span>✓ done</span><span>Hover anyone for their name · click to open their conversation · click the board for tasks</span><span class="layout-toggle">Office: <a href="#" data-desks="10">10 desks</a> · <a href="#" data-desks="20">20 desks</a></span></div>');
+    $("view").insertAdjacentHTML("beforeend", '<div class="legend"><span>💬 waiting for you</span><span>⌨️ working</span><span>❗ needs you</span><span>✓ done</span><span>Hover anyone for their name · click to open their conversation · click the board for tasks</span><span class="layout-toggle">Office: <a href="#" data-desks="10" title="12 seats + Jarvis">small</a> · <a href="#" data-desks="20" title="19 seats + Jarvis">large (20 desks)</a></span></div>');
     $("view").querySelectorAll("[data-desks]").forEach((a) => { if ((localStorage.getItem("office-desks") || "10") === a.dataset.desks) a.classList.add("on");
       a.onclick = (e) => { e.preventDefault(); try { localStorage.setItem("office-desks", a.dataset.desks); } catch {} location.reload(); }; });
     mounted = true;
