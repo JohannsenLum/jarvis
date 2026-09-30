@@ -391,8 +391,10 @@
     (state?.visitors || []).slice(0, free.length).forEach((v, k) => out.push({ i: free[k], id: v.id, type: v.type, label: v.type, s: v, look: lookFor(v.id, v.type, k), shirt: SHIRTS[k % 6] }));
     return out;
   }
+  const needsYou = (id) => (state?.permissions || []).some((q) => id === "jarvis" ? !q.agent : q.agent === id || q.agentId === id);
   function modeOf(id, s) {
-    if (id === "jarvis") return !s || s.state === "offline" ? "idle" : s.state === "working" ? "working" : state?.screen?.asking ? "asking" : "waiting";
+    if (needsYou(id) || (id === "jarvis" && (state?.question || state?.screen?.asking))) return "asking";
+    if (id === "jarvis") return !s || s.state === "offline" ? "idle" : s.state === "working" ? "working" : "waiting";
     if (!s) return "idle";
     if (s.state === "working") return "working";
     return Date.now() - (s.updated || 0) < 10 * 60 * 1000 ? "done" : "idle";
@@ -509,7 +511,7 @@
     if (!overlay || !state) return;
     const out = [];
     const add = (id, name, g, mode, doing) => {
-      const a = p(...g), bubble = mode === "working" ? (doing || "working…") : mode === "asking" ? "needs you!" : mode === "waiting" ? "waiting for you…" : mode === "done" ? "done ✓" : "";
+      const a = p(...g), bubble = mode === "working" ? (doing || "working…") : mode === "asking" ? "needs your OK!" : mode === "waiting" ? "waiting for you…" : mode === "done" ? "done ✓" : "";
       out.push(`<button class="po-hit ${selected === id ? "sel" : ""}" data-id="${esc(id)}" aria-label="${esc(name)}" style="left:${(a.x - 28) * scale}px;top:${(a.y - 84) * scale}px;width:${56 * scale}px;height:${106 * scale}px"><span class="po-name m-${mode}">${esc(name)}</span></button>`
         + (bubble ? `<span class="po-bubble m-${mode}" data-b="${esc(id)}">${esc(bubble)}</span>` : ""));
     };

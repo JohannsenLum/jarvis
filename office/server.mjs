@@ -69,7 +69,9 @@ const clip = (s, n = 160) => (s.length > n ? s.slice(0, n - 1) + "…" : s);
 function toolSummary(name, input = {}) {
   const v = input.command || input.file_path || input.path || input.pattern || input.query || input.url ||
     input.description || input.prompt || input.skill || "";
-  const short = String(name).replace(/^mcp__(plugin_jarvis_)?jarvis__/, "jarvis · ").replace(/^mcp__/, "");
+  // mcp__claude_ai_Gmail__send_message → "Gmail · send message"; mcp__jarvis__jarvis_write → "jarvis · write"
+  const short = String(name).replace(/^mcp__(plugin_jarvis_)?jarvis__jarvis_/, "jarvis · ").replace(/^mcp__(claude_ai_)?/, "")
+    .replace(/__/g, " · ").replace(/_/g, " ");
   return { name: short, detail: clip(String(v).replace(/\s+/g, " "), 140) };
 }
 
@@ -141,6 +143,58 @@ function board(entries, agents, nowText) {
   for (const l of loops.split("\n")) { const t = l.replace(/^\s*[-*]\s*(\[ \]\s*)?/, "").trim(); if (t && t !== "-") col.todo.push({ title: t, kind: "loop" }); }
   col.done = col.done.slice(-8);
   return col;
+}
+
+// A question Jarvis is asking you right now with its question tool (asked, no answer yet).
+function openQuestion(entries) {
+  const answered = new Set();
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i], c = e.message?.content;
+    if (e.type === "user" && Array.isArray(c)) for (const b of c) if (b.type === "tool_result") answered.add(b.tool_use_id);
+    if (e.type === "assistant" && Array.isArray(c)) for (const b of c) {
+      if (b.type === "tool_use" && b.name === "AskUserQuestion") {
+        if (answered.has(b.id)) return null;
+        const qs = (b.input?.questions || []).map((q) => ({ question: q.question, multi: !!q.multiSelect, options: (q.options || []).map((o) => o.label) }));
+        return qs.length ? { id: b.id, questions: qs } : null;
+      }
+    }
+    if (entries.length - i > 400) break;
+  }
+  return null;
+}
+
+// The Brain as a graph: every page in the vault and the [[wikilinks]] between them.
+let graphCache = { at: 0, data: null };
+function vaultGraph() {
+  if (!VAULT) return { nodes: [], links: [] };
+  if (Date.now() - graphCache.at < 10000) return graphCache.data;
+  const nodes = [], byKey = new Map(), raw = [];
+  const walk = (dir, rel = "") => {
+    let list = []; try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const d of list) {
+      if (d.name.startsWith(".") || (!rel && ["_templates", "raw"].includes(d.name))) continue;
+      const r = rel + d.name;
+      if (d.isDirectory()) walk(path.join(dir, d.name), r + "/");
+      else if (d.name.endsWith(".md") && nodes.length < 3000) {
+        let text = ""; try { text = fs.readFileSync(path.join(dir, d.name), "utf8").slice(0, 200000); } catch { /* skip */ }
+        const title = (text.match(/^#\s+(.+)$/m) || [])[1] || d.name.slice(0, -3);
+        const node = { id: r, title, folder: rel.split("/")[0] || "(root)" };
+        nodes.push(node);
+        byKey.set(r.slice(0, -3).toLowerCase(), node.id); byKey.set(d.name.slice(0, -3).toLowerCase(), byKey.get(d.name.slice(0, -3).toLowerCase()) || node.id);
+        for (const m of text.matchAll(/\[\[([^\]|#]+)(?:[#|][^\]]*)?\]\]/g)) raw.push([node.id, m[1].trim().toLowerCase().replace(/\.md$/, "")]);
+      }
+    }
+  };
+  walk(VAULT);
+  const links = [], seen = new Set();
+  for (const [from, key] of raw) {
+    const to = byKey.get(key) || byKey.get(key.split("/").pop());
+    if (!to || to === from) continue;
+    const k = from < to ? from + "|" + to : to + "|" + from;
+    if (!seen.has(k)) { seen.add(k); links.push({ source: from, target: to }); }
+  }
+  graphCache = { at: Date.now(), data: { nodes, links, vault: VAULT } };
+  return graphCache.data;
 }
 
 function latestSession() {
@@ -220,7 +274,8 @@ function snapshot() {
     if (sc.text && !sc.asking && Date.now() - item.created > 4000) item.resolve(null);
   }
   return { root: ROOT, session: s?.id || null, tmux: tmuxAlive(), screen: sc, main, desks, visitors, now, board: kanban, ops: opsSnapshot(),
-           permissions: [...pending.values()].map(({ id, tool, detail, agent, created }) => ({ id, tool, detail, agent, created })) };
+           permissions: [...pending.values()].map(({ id, tool, detail, agent, agentId, created }) => ({ id, tool, detail, agent, agentId, created })),
+           question: openQuestion(s ? readJsonl(s.p).entries : []) };
 }
 
 // ---------- tmux ----------
@@ -251,12 +306,19 @@ function typeIntoSession(text, key) {
 const pending = new Map();                     // id -> { id, tool, detail, agent, created, resolve }
 const clients = new Set();                     // SSE responses
 
+function agentTypeOf(agentId) {
+  if (!agentId) return null;
+  const s = latestSession();
+  try { return JSON.parse(fs.readFileSync(path.join(PROJECT_DIR, s.id, "subagents", `agent-${agentId}.meta.json`), "utf8")).agentType || "agent"; }
+  catch { return "agent"; }
+}
+
 function askDashboard(hook, res) {
   return new Promise((resolve) => {
     if (clients.size === 0) return resolve(null);        // nobody watching: let the terminal ask
     const id = crypto.randomBytes(6).toString("hex");
     const t = toolSummary(hook.tool_name, hook.tool_input);
-    const item = { id, tool: t.name, detail: t.detail, agent: hook.agent_type || null, created: Date.now(),
+    const item = { id, tool: t.name, detail: t.detail, agent: hook.agent_type || agentTypeOf(hook.agent_id), agentId: hook.agent_id || null, created: Date.now(),
       resolve: (decision) => { clearTimeout(item.timer); pending.delete(id); setImmediate(broadcast); resolve(decision); } };
     item.timer = setTimeout(() => item.resolve(null), 110000);
     // Answered in the terminal instead: Claude Code stops the hook, the connection drops, the card goes.
@@ -307,6 +369,13 @@ const server = http.createServer(async (req, res) => {
       res.write(`data: ${JSON.stringify(snapshot())}\n\n`);
       req.on("close", () => clients.delete(res));
       return;
+    }
+    if (req.method === "GET" && (url.pathname === "/api/graph" || url.pathname === "/api/note")) {
+      if (url.searchParams.get("t") !== UI_TOKEN) return send(res, 403, { error: "forbidden" });
+      if (url.pathname === "/api/graph") return send(res, 200, vaultGraph());
+      const rel = String(url.searchParams.get("path") || ""), full = path.resolve(VAULT || "/nonexistent", rel);
+      if (!VAULT || !full.startsWith(path.resolve(VAULT) + path.sep) || !full.endsWith(".md")) return send(res, 400, { error: "not a vault page" });
+      try { return send(res, 200, { path: rel, text: fs.readFileSync(full, "utf8").slice(0, 6000) }); } catch { return send(res, 404, { error: "not found" }); }
     }
     if (req.method === "POST" && url.pathname === "/hook/permission") {
       if (req.headers.authorization !== `Bearer ${HOOK_TOKEN}`) return send(res, 403, { error: "forbidden" });
