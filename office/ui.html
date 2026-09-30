@@ -311,6 +311,15 @@ body.ops-mode{--bg:#0d0d0f;--surface:#111113;--ink:#e8e1df;--ink-2:#a3999d;--lin
   #h-system .hud-rows li{font-size:9px;padding:3px 0}#h-system .hud-rows b{font-size:9px;max-width:110px}
 }
 
+.cmd-confirm{width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:24px;background:#171317;color:#e8e1df;border:1px solid #624754;border-radius:6px;box-shadow:0 24px 100px #0009;font:12px/1.6 var(--mono)}
+.cmd-confirm::backdrop{background:#080609ba;backdrop-filter:blur(4px)}
+.cmd-confirm-label{font-size:9px;letter-spacing:.18em;color:#cda0ad}
+.cmd-confirm h2{font-size:18px;font-weight:500;margin:10px 0}
+.cmd-confirm p{color:#b8aab1}
+.cmd-confirm blockquote{margin:16px 0 24px;padding:12px;border-left:2px solid #cda0ad;background:#231c22;white-space:pre-wrap;overflow-wrap:anywhere}
+.cmd-confirm-actions{display:flex;justify-content:flex-end;gap:10px}
+.cmd-confirm button:focus-visible{outline:2px solid #dfb8c6;outline-offset:3px}
+.hud-cmds button:disabled{opacity:.5;cursor:wait}
 </style>
 </head>
 <body>

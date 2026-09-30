@@ -34,16 +34,44 @@
         ${panel("h-feed", `Live feed <span class="live">LIVE</span>`, `<ul class="hud-feed" id="h-feed-list"></ul>`)}
         ${panel("h-cost", "Tokens &amp; cost", `<div id="h-cost-body"></div>`, "wide")}
         ${panel("h-agents", "Agents", `<div class="hud-agents" id="h-agents-list"></div>`)}
-        ${panel("h-cmds", "Quick commands", `<div class="hud-cmds">${COMMANDS.map(([l], i) => `<button data-cmd="${i}">▸ ${esc(l)}</button>`).join("")}</div><p class="hud-note" id="h-cmd-note">Typed into your session</p>`)}
+        ${panel("h-cmds", "Quick commands", `<div class="hud-cmds">${COMMANDS.map(([l], i) => `<button data-cmd="${i}">▸ ${esc(l)}</button>`).join("")}</div><p class="hud-note" id="h-cmd-note" role="status">Confirmation required before sending</p>`)}
         ${panel("h-routines", "Routines", `<div id="h-routines-body"></div>`)}
         ${panel("h-memory", "Memory insights", `<div id="h-memory-body"></div>`)}
         ${panel("h-system", "System monitor", `<div id="h-system-body"></div>`)}
-      </div></div>`;
-    root.querySelector(".hud-cmds").addEventListener("click", async (e) => {
-      const b = e.target.closest("[data-cmd]"); if (!b) return;
-      const note = root.querySelector("#h-cmd-note");
-      try { await send(COMMANDS[b.dataset.cmd][1]); note.textContent = `Sent: ${COMMANDS[b.dataset.cmd][0]}`; }
-      catch (err) { note.textContent = err.message; }
+      </div>
+      <dialog class="cmd-confirm" aria-labelledby="cmd-confirm-title" aria-describedby="cmd-confirm-description cmd-confirm-text">
+        <form method="dialog">
+          <span class="cmd-confirm-label">QUICK COMMAND</span>
+          <h2 id="cmd-confirm-title"></h2>
+          <p id="cmd-confirm-description">Send this command to your Jarvis session?</p>
+          <blockquote id="cmd-confirm-text"></blockquote>
+          <div class="cmd-confirm-actions"><button class="btn" value="cancel" autofocus>Cancel</button><button class="btn primary" value="run">Run command</button></div>
+        </form>
+      </dialog></div>`;
+    const dialog = root.querySelector(".cmd-confirm");
+    const commandButtons = [...root.querySelectorAll("[data-cmd]")];
+    const note = root.querySelector("#h-cmd-note");
+    let pendingCommand = null, sending = false;
+    root.querySelector(".hud-cmds").addEventListener("click", (e) => {
+      const button = e.target.closest("[data-cmd]");
+      if (!button || sending || dialog.open) return;
+      pendingCommand = COMMANDS[Number(button.dataset.cmd)];
+      dialog.querySelector("#cmd-confirm-title").textContent = pendingCommand[0];
+      dialog.querySelector("#cmd-confirm-text").textContent = pendingCommand[1];
+      dialog.returnValue = "cancel";
+      dialog.showModal();
+    });
+    dialog.addEventListener("cancel", () => { dialog.returnValue = "cancel"; });
+    dialog.addEventListener("close", async () => {
+      const command = pendingCommand;
+      pendingCommand = null;
+      if (dialog.returnValue !== "run" || !command || sending) return;
+      sending = true;
+      commandButtons.forEach(button => { button.disabled = true; });
+      note.textContent = `Sending: ${command[0]}…`;
+      try { await send(command[1]); note.textContent = `Sent: ${command[0]}`; }
+      catch (err) { note.textContent = `Could not send: ${err.message}`; }
+      finally { sending = false; commandButtons.forEach(button => { button.disabled = false; }); }
     });
     orb = root.querySelector("#h-orb").getContext("2d");
     root.querySelector("#h-motion").onclick = (e) => {
