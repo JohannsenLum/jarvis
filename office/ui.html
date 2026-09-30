@@ -437,7 +437,8 @@ function renderActions(t) {
       <button class="btn" data-key="Escape">Skip for now</button><span class="hint">For "Other", type your answer in the terminal below.</span></div></div>`);
   }
   if (t.id === "brain") parts.push(`<div class="brainbox"><b>Your second brain</b><span class="hint">${state.ops?.vault ? `${state.ops.vault.pages} pages · ${state.ops.vault.people} people · ${state.ops.vault.clients} clients` : ""}</span>
-    <div class="row"><button class="btn primary" id="open-graph">Open graph view</button><button class="btn" id="open-obsidian">Open in Obsidian</button></div></div>`);
+    <div class="row"><button class="btn primary" id="open-obsidian">Open in Obsidian</button></div>
+    <span class="hint">Obsidian's graph view (the circle-of-dots icon) shows how your pages connect.</span></div>`);
   const html = parts.join("");
   if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
 }
