@@ -113,6 +113,36 @@ function activity(rec, msgs) {
   return { state: finished || age > 20000 ? "waiting" : "working", doing: "" };
 }
 
+// The kanban board on the office wall: Claude Code's own task lists (TaskCreate / TaskUpdate / TodoWrite)
+// from the main session, plus sub-agent runs, plus the open loops in now.md as things to do.
+function board(entries, agents, nowText) {
+  const tasks = new Map(); let nextId = 1, todo = null;
+  for (const e of entries) {
+    const c = e.message?.content;
+    if (e.type !== "assistant" || !Array.isArray(c)) continue;
+    for (const b of c) {
+      if (b.type !== "tool_use") continue;
+      const i = b.input || {};
+      if (b.name === "TaskCreate") tasks.set(String(nextId++), { title: i.subject || i.description || "Task", status: "pending" });
+      else if (b.name === "TaskUpdate" && tasks.has(String(i.taskId))) {
+        const t = tasks.get(String(i.taskId));
+        if (i.status === "deleted") tasks.delete(String(i.taskId)); else { if (i.status) t.status = i.status; if (i.subject) t.title = i.subject; }
+      } else if (b.name === "TodoWrite" && Array.isArray(i.todos)) todo = i.todos;
+    }
+  }
+  const items = [...tasks.values(), ...(todo || []).map((t) => ({ title: t.content || t.activeForm || "Task", status: t.status }))];
+  const col = { todo: [], doing: [], done: [] };
+  for (const t of items) col[t.status === "completed" ? "done" : t.status === "in_progress" ? "doing" : "todo"].push({ title: t.title, kind: "task" });
+  for (const a of agents) {
+    if (a.state === "working") col.doing.push({ title: a.description || a.type, kind: a.type });
+    else if (Date.now() - a.updated < 12 * 3600e3) col.done.push({ title: a.description || a.type, kind: a.type });
+  }
+  const loops = (nowText.match(/## Open loops[^\n]*\n([\s\S]*?)(\n## |$)/) || [])[1] || "";
+  for (const l of loops.split("\n")) { const t = l.replace(/^\s*[-*]\s*(\[ \]\s*)?/, "").trim(); if (t && t !== "-") col.todo.push({ title: t, kind: "loop" }); }
+  col.done = col.done.slice(-8);
+  return col;
+}
+
 function latestSession() {
   let best = null;
   try {
@@ -183,12 +213,13 @@ function snapshot() {
   const visitors = agents.filter((a) => !DESKS.includes(a.type)).sort((a, b) => b.updated - a.updated).slice(0, 6);
   let now = "";
   if (VAULT) { try { now = fs.readFileSync(path.join(VAULT, "now.md"), "utf8").replace(/^---[\s\S]*?---\n/, "").slice(0, 1500); } catch { /* none */ } }
+  const kanban = board(s ? readJsonl(s.p).entries : [], agents, now);
   const sc = screen();
   // Answered in the terminal: the prompt is gone from the screen, so drop the dashboard card too.
   for (const item of [...pending.values()]) {
     if (sc.text && !sc.asking && Date.now() - item.created > 4000) item.resolve(null);
   }
-  return { root: ROOT, session: s?.id || null, tmux: tmuxAlive(), screen: sc, main, desks, visitors, now, ops: opsSnapshot(),
+  return { root: ROOT, session: s?.id || null, tmux: tmuxAlive(), screen: sc, main, desks, visitors, now, board: kanban, ops: opsSnapshot(),
            permissions: [...pending.values()].map(({ id, tool, detail, agent, created }) => ({ id, tool, detail, agent, created })) };
 }
 
