@@ -72,16 +72,16 @@ def link_skills(target: Path, quiet: bool) -> list[str]:
     linked = []
     for src in skill_dirs():
         dst = target / src.name
-        if dst.is_symlink() and Path(os.readlink(dst)).resolve() == src.resolve():
+        if dst.is_symlink() and dst.resolve() == src.resolve():
             linked.append(src.name)
             continue
         if dst.exists() or dst.is_symlink():
-            if dst.is_symlink() and str(REPO) in os.readlink(dst):
+            if dst.is_symlink() and (str(REPO) in os.readlink(dst) or ".jarvis/" in os.readlink(dst)):
                 dst.unlink()                       # our old link pointing somewhere stale
             else:
                 say(f"  ! {dst} already exists and isn't Jarvis's; left it alone", quiet)
                 continue
-        dst.symlink_to(src)
+        dst.symlink_to(os.path.relpath(src, target) if config.INSTANCE else src)
         linked.append(src.name)
     return linked
 
@@ -92,12 +92,29 @@ def link_agents(target: Path, quiet: bool) -> int:
     n = 0
     for src in sorted((REPO / "agents").glob("*.md")):
         dst = target / src.name
-        if dst.is_symlink() and str(REPO) in os.readlink(dst):
+        if dst.is_symlink() and (str(REPO) in os.readlink(dst) or ".jarvis/" in os.readlink(dst)):
             dst.unlink()
         elif dst.exists():
             say(f"  ! {dst} already exists and isn't Jarvis's; left it alone", quiet)
             continue
-        dst.symlink_to(src)
+        dst.symlink_to(os.path.relpath(src, target) if config.INSTANCE else src)
+        n += 1
+    return n
+
+
+def link_user_skills(source: Path, target: Path) -> int:
+    """Skills in the folder's own skills/ (user-made, edited copies, self-learned) override framework
+    skills of the same name. Updates never touch this folder."""
+    n = 0
+    if not source.exists():
+        return n
+    for md in sorted(source.rglob("SKILL.md")):
+        src, dst = md.parent, target / md.parent.name
+        if dst.is_symlink():
+            dst.unlink()
+        elif dst.exists():
+            continue
+        dst.symlink_to(os.path.relpath(src, target))
         n += 1
     return n
 
@@ -106,7 +123,7 @@ def unlink_skills(target: Path) -> int:
     n = 0
     if target.exists():
         for dst in target.iterdir():
-            if dst.is_symlink() and str(REPO) in os.readlink(dst):
+            if dst.is_symlink() and (str(REPO) in os.readlink(dst) or ".jarvis/" in os.readlink(dst)):
                 dst.unlink()
                 n += 1
     return n
@@ -191,7 +208,32 @@ def identity_targets() -> dict[str, Path]:
     }
 
 
+def render_instance(quiet: bool = False) -> None:
+    """Wire a Jarvis folder (made by create-jarvis) so every tool opened in it becomes Jarvis.
+
+    Everything is project-scoped: nothing outside the folder changes. Absolute paths are written on
+    purpose and refreshed on every render, so moving the folder only needs `jarvis render`.
+    """
+    root = config.instance_root()
+    text = identity.render().read_text()
+    identity.write_block(root / "AGENTS.md", text)            # Codex, Grok Build, OpenClaw, DeepSeek, Cursor…
+    identity.write_block(root / "CLAUDE.md", "@AGENTS.md")     # Claude Code
+    identity.write_block(root / "GEMINI.md", "@AGENTS.md")     # Gemini CLI
+    for target in (root / ".claude" / "skills", root / ".agents" / "skills"):
+        link_skills(target, quiet)
+        link_user_skills(root / "skills", target)            # yours win over Jarvis's on a name clash
+    link_agents(root / ".claude" / "agents", quiet)
+    json_merge(root / ".mcp.json", lambda d: d.setdefault("mcpServers", {}).__setitem__("jarvis", mcp_entry()))
+    claude_hooks(True, root / ".claude" / "settings.json")
+    args = ", ".join(json.dumps(a) for a in MCP_CMD[1:])
+    text_block(root / ".codex" / "config.toml", f'[mcp_servers.jarvis]\ncommand = {json.dumps(MCP_CMD[0])}\nargs = [{args}]')
+    set_mcp_json(root / ".gemini" / "settings.json")
+    say(f"✓ Jarvis folder wired: {root}", quiet)
+
+
 def refresh_identity(quiet: bool = False) -> None:
+    if config.INSTANCE:
+        render_instance(quiet=True)
     rendered = identity.render()
     installed = config.load().get("harnesses", [])
     text = rendered.read_text()
@@ -325,6 +367,84 @@ def doctor() -> None:
     print(f"\nSkills: {len(skill_dirs())} in {REPO / 'skills'}")
 
 
+def init_instance(answers_file: Path) -> None:
+    """Called by create-jarvis after it copies the framework into <folder>/.jarvis."""
+    from jarvis_core import vault
+    if not config.INSTANCE:
+        raise SystemExit("init-instance only runs inside a Jarvis folder's .jarvis/.")
+    a = json.loads(answers_file.read_text())
+    kv = config.vault()
+    for name, body in {
+        "index.md": "# Index\n\nCatalog of every page in the vault, grouped by folder. Jarvis updates this on every change.\n\n"
+                    "## me\n\n## life\n\n## relationships\n\n## work\n\n## journal\n",
+        "log.md": "# Log\n\nAppend-only. One line per change: `## [YYYY-MM-DD] <kind> | <what>`\n\n",
+        "now.md": f"---\ntype: note\nstatus: active\nupdated: {vault.today()}\n---\n# Now\nUpdated: {vault.today()}\n\n"
+                  "## Focus this week\n- Finish onboarding with Jarvis.\n\n## Open loops (waiting on / promised)\n- \n\n"
+                  "## Next 7 days\n- \n\n## Recently changed\n- Jarvis folder created.\n",
+    }.items():
+        if not (kv / name).exists():
+            (kv / name).write_text(body)
+    user = {k: v for k, v in (a.get("user") or {}).items() if v}
+    pending = [{"step": p, "question": q, "skipped_at": vault.today(), "reason": "skipped"} for p, q in a.get("skipped", [])]
+    data = vault.onboarding() or {"version": 1, "started_at": vault.today()}
+    data.update({"status": "in_progress", "current_step": a.get("next_step", "work_details"),
+                 "user": {**data.get("user", {}), **user}, "assistant": a.get("assistant") or "Jarvis"})
+    if a.get("work"):
+        data["work"] = [{"template": t} for t in a["work"]]
+    data["pending"] = data.get("pending", []) + pending
+    vault.resolve("me").mkdir(parents=True, exist_ok=True)
+    vault.resolve("me/onboarding.json").write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+    own = config.instance_root() / "skills"
+    (own / "learned").mkdir(parents=True, exist_ok=True)
+    (own / "learned" / ".gitkeep").touch()
+    readme = own / "README.md"
+    if not readme.exists():
+        readme.write_text("# Your skills\n\nSkills here are yours: Jarvis updates never change this folder.\n"
+                          "- Add your own: `skills/<name>/SKILL.md`.\n"
+                          "- Customise a Jarvis skill: copy it from `.jarvis/skills/…` to here and edit; yours wins.\n"
+                          "- `learned/` holds skills Jarvis writes for itself.\n"
+                          "Run `jarvis render` after adding or removing one.\n")
+    cfg = config.load()
+    cfg.update({"repo": str(REPO), "vault": str(kv), "home_runtime": a.get("home_runtime", "claude-code"),
+                "harnesses": sorted(set(cfg.get("harnesses", [])) | {"project"})})
+    config.save(cfg)
+    render_instance()
+    vault.log("Jarvis folder created by create-jarvis", "create")
+
+
+def update(source: str) -> None:
+    """Refresh the framework in <folder>/.jarvis from GitHub, keeping settings and self-learned skills."""
+    import tempfile
+    if not config.INSTANCE:
+        raise SystemExit("`jarvis update` runs inside a Jarvis folder. For the repo itself, use `git pull`.")
+    with tempfile.TemporaryDirectory() as tmp:
+        if subprocess.run(["git", "clone", "--depth", "1", "-q", source, tmp]).returncode != 0:
+            raise SystemExit(f"Couldn't download {source}")
+        for part in ("core", "mcp", "hooks", "bin", "agents", "hermes", "setup.sh", "deps.env", "README.md"):
+            src, dst = Path(tmp) / part, REPO / part
+            if not src.exists():
+                continue
+            if dst.is_dir():
+                shutil.rmtree(dst)
+            elif dst.exists():
+                dst.unlink()
+            (shutil.copytree if src.is_dir() else shutil.copy2)(src, dst)
+        for sub in (Path(tmp) / "skills").iterdir():                 # framework skills only
+            if sub.name == "learned" or not sub.is_dir():
+                continue
+            dst = REPO / "skills" / sub.name
+            if dst.exists():
+                shutil.rmtree(dst)
+            shutil.copytree(sub, dst)
+        for tpl in (Path(tmp) / "knowledge" / "_templates").glob("*.md"):   # add new page templates only
+            target = config.vault() / "_templates" / tpl.name
+            if not target.exists():
+                shutil.copy2(tpl, target)
+        version = subprocess.run(["git", "-C", tmp, "rev-parse", "--short", "HEAD"], capture_output=True, text=True).stdout.strip()
+    refresh_identity(quiet=True)
+    print(f"✓ Jarvis framework updated to {version}. Your vault, your skills/ folder, settings and notes are untouched.")
+
+
 def export_skills(out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     for src in skill_dirs():
@@ -337,12 +457,17 @@ def main() -> None:
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("install", help="plug Jarvis into harnesses")
     p.add_argument("harness", nargs="+", help=f"{', '.join(HARNESSES)} or all (all = the ones found on this Mac)")
+    p.add_argument("--global", dest="glob", action="store_true", help="in a Jarvis folder: install everywhere, not just this folder")
     p = sub.add_parser("uninstall", help="remove Jarvis from harnesses")
     p.add_argument("harness", nargs="+")
     sub.add_parser("render", help="re-render identity everywhere")
     sub.add_parser("doctor", help="show status")
     p = sub.add_parser("export-skills", help="zip skills for upload to the Claude app")
     p.add_argument("--out", type=Path, default=config.home() / "skill-zips")
+    p = sub.add_parser("init-instance", help=argparse.SUPPRESS)
+    p.add_argument("answers", type=Path)
+    p = sub.add_parser("update", help="update the framework in this Jarvis folder")
+    p.add_argument("--source", default="https://github.com/JohannsenLum/jarvis.git")
     sub.add_parser("mcp", help="run the MCP server on stdio")
     p = sub.add_parser("schedule", help="scheduled jobs from another runtime")
     p.add_argument("args", nargs=argparse.REMAINDER)
@@ -350,6 +475,10 @@ def main() -> None:
 
     if a.cmd == "install":
         names = [h for h in HARNESSES if DETECT[h]()] if a.harness == ["all"] else a.harness
+        if config.INSTANCE and not a.glob and {"claude-code", "codex", "gemini"} & set(names):
+            print("This Jarvis folder already works in Claude Code, Codex and Gemini when you open them here.\n"
+                  "To make Jarvis active in every folder, add --global.")
+            names = [h for h in names if h not in ("claude-code", "codex", "gemini")]
         for h in names:
             install(h)
         refresh_identity(quiet=True)
@@ -358,6 +487,10 @@ def main() -> None:
             uninstall(h)
     elif a.cmd == "render":
         refresh_identity()
+    elif a.cmd == "init-instance":
+        init_instance(a.answers)
+    elif a.cmd == "update":
+        update(a.source)
     elif a.cmd == "doctor":
         doctor()
     elif a.cmd == "export-skills":

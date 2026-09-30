@@ -10,10 +10,18 @@ import os
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]          # core/jarvis_core/config.py → repo root
+# A Jarvis folder made by create-jarvis keeps the framework in <folder>/.jarvis and the vault in
+# <folder>/knowledge; its settings stay inside the folder, so several folders never collide.
+INSTANCE = REPO.name == ".jarvis"
+
+
+def instance_root() -> Path | None:
+    return REPO.parent if INSTANCE else None
 
 
 def home() -> Path:
-    return Path(os.environ.get("JARVIS_HOME", Path.home() / ".jarvis")).expanduser()
+    default = REPO if INSTANCE else Path.home() / ".jarvis"
+    return Path(os.environ.get("JARVIS_HOME", default)).expanduser()
 
 
 def load() -> dict:
@@ -37,7 +45,8 @@ def repo() -> Path:
 
 def vault() -> Path:
     env = os.environ.get("JARVIS_VAULT") or os.environ.get("OBSIDIAN_VAULT_PATH")
-    return Path(env or load().get("vault") or repo() / "knowledge").expanduser()
+    default = REPO.parent / "knowledge" if INSTANCE else repo() / "knowledge"
+    return Path(env or load().get("vault") or default).expanduser()
 
 
 def home_runtime() -> str:
