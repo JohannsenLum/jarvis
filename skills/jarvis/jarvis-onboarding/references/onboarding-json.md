@@ -29,8 +29,12 @@ Write it after every step. Unknown or skipped values are `null`, never guessed.
 
   "frameworks": ["eisenhower", "dichotomy-of-control"],
   "principles": ["Say no by default"],
+  "framework_next": "168",
 
-  "rhythm": { "morning_briefing": "07:30", "weekly_review": "Sunday" },
+  "rhythm": { "morning_briefing": "07:30", "weekly_review": "Sunday",
+              "routines": ["morning_briefing", "weekly_review", "consolidate"],
+              "briefing_includes": ["calendar", "open_loops", "people"],
+              "scheduled_on": "claude-desktop" },
   "channels": { "cli": "connected", "telegram": "setup_pending", "telegram_mode": "dm_topics", "voice": "standard" },
 
   "connections": { "google": "pending", "apple": "connected", "obsidian": "connected",
@@ -58,6 +62,8 @@ Write it after every step. Unknown or skipped values are `null`, never guessed.
 - `tone`: `warm | formal | direct`. `autonomy`: `ask-first | act-and-tell | handle-quietly`.
   Skipped values use the defaults (chief-of-staff, warm, act-and-tell) and are listed in `pending`.
 - `work[].template`: `agency | employee | ceo | freelancer | student`. `folder` is the slug path created.
+- `frameworks`: decision frameworks chosen for `me/frameworks/`. `framework_next`: `168 | declarations | aioo | deal-cards | null`, a guided framework to offer after setup.
+- `rhythm.routines`: any of `morning_briefing, weekly_review, consolidate, lint` (the details live in `me/routines.md`). `rhythm.scheduled_on`: `claude-desktop | hermes | launchd-claude | launchd-codex | openclaw | null`.
 - `privacy` values: `local | encrypted | cloud`. A skipped area is stored as `local` and listed in `pending`.
 - `channels.voice`: `jev | standard | off | null`.
 - `channels.telegram_mode`: `dm | dm_topics | group_topics | pending`.

@@ -1,245 +1,230 @@
 # Jarvis
 
-A personal assistant you can plug into any agent harness (Claude Code, Codex, DeepSeek Harness, Hermes,
-OpenClaw, Cursor, Gemini CLI, the Claude desktop app) and talk to from Telegram or by voice. Wherever you
-use it, it's the same Jarvis: one identity, one private markdown vault, one set of skills and memory.
+Your own personal assistant, living in a folder you own. Jarvis knows your work, your people, your goals
+and how you like to decide, keeps a private second brain in plain markdown, and runs your mornings.
 
-```
- Claude Code   Codex   DeepSeek   OpenClaw   Cursor   Gemini   Claude app        Telegram · voice · cron
-      │          │        │          │         │        │          │                     │
-      └──────────┴────────┴──── Jarvis MCP server + skills + identity ───────── Hermes (home runtime)
-                                             │
-                                  knowledge/ vault (Obsidian)
-```
+It isn't a new AI app. It's a layer that plugs into the AI tools you already use (Claude, Codex, Gemini,
+Cursor, Hermes, OpenClaw and others), so it's the same Jarvis everywhere: one identity, one vault, one
+set of skills.
 
 ## Get started
 
 ```bash
-npx github:JohannsenLum/jarvis          # wizard: your name, assistant's name, role, tone, autonomy, work
-cd ~/Jarvis && claude                   # Claude Code in this folder is Jarvis (also codex, gemini, grok…)
+npx github:JohannsenLum/jarvis
 ```
 
-The wizard builds **your own Jarvis folder** and a private git repo for it:
+A two-minute wizard asks your name, what to call your assistant, its role, tone and how much it may do
+on its own, and builds your Jarvis folder (default `~/Jarvis`). Then open that folder:
+
+- **Claude desktop app** (recommended): open `~/Jarvis` in the Code section.
+- **Terminal:** `cd ~/Jarvis && claude` (or `codex`, `gemini`, …).
+
+Say hi. Jarvis takes it from there. On first open, approve the folder's `jarvis` tools when asked.
+
+Needs macOS, Node 18+, Python 3 and git (`xcode-select --install` covers Python and git).
+
+## Onboarding: five chapters, about eight minutes
+
+Jarvis interviews you in a chat that builds your second brain as you answer. You tap answers instead of
+typing, and you can skip anything or say "pause" and pick up later.
+
+```
+◆◇◇◇◇  1 · Meet            role, tone, autonomy, with a preview of how each one sounds
+◆◆◇◇◇  2 · Your world      work, clients, life areas, the people who matter
+◆◆◆◇◇  3 · What matters    goals, the ideas you decide by, a framework to try
+◆◆◆◆◇  4 · Your rhythm     which routines, what your briefing covers, when; chat and voice
+◆◆◆◆◆  5 · Connect         Google, Apple, GitHub…; privacy per area; bring in existing folders
+```
+
+After each chapter you see the pages it created (`+ relationships/people/sam.md`). It ends with your
+vault, a short "who I think you are" card you can correct, your first briefing time, and three things to
+try. Anything you skip is saved and offered again later ("finish onboarding").
+
+## Your folder
 
 ```
 ~/Jarvis/
-  CLAUDE.md, AGENTS.md, GEMINI.md   your Jarvis identity (Jarvis's part is a marked block; add your own notes around it)
-  .claude/  .agents/  .codex/  .gemini/  .mcp.json    skills, sub-agents, recall hooks, Jarvis tools
-  knowledge/        your vault: yours, never touched by updates
-  skills/           your own skills; a copy of a Jarvis skill here overrides the original; never touched by updates
-  .jarvis/          the framework: replaced wholesale by `jarvis update` (no merge conflicts)
+  knowledge/        your second brain (open it in Obsidian). Yours; updates never touch it
+  skills/           your own skills. A copy of a Jarvis skill here overrides the original
+  CLAUDE.md  AGENTS.md  GEMINI.md    Jarvis's identity in a marked block; add your own notes around it
+  .claude/ .agents/ .codex/ .gemini/ .mcp.json    wiring for each AI tool (generated)
+  .jarvis/          Jarvis itself: replaced wholesale by `jarvis update`, so no merge conflicts
 ```
 
-- **Only in this folder by default.** Claude Code elsewhere stays normal. Want Jarvis everywhere?
-  `jarvis install claude-code --global`.
-- **Updates:** `jarvis update` swaps `.jarvis/` for the latest version and re-renders. Your vault, your
-  `skills/`, your notes and settings stay as they are.
-- **First open:** Claude Code asks you to approve the folder's MCP server (`jarvis`). Say yes.
-- **Always-on** (Telegram, scheduled briefings, desk voice): run `jarvis setup hermes`, or
-  `jarvis schedule install --runner launchd-claude` to run routines through Claude on this Mac.
-- Keep any remote for your Jarvis folder **private**: your vault is in it.
+- **Updates:** `jarvis update` swaps `.jarvis/` for the latest version and re-renders the wiring. Your
+  vault, skills, notes and settings stay as they are.
+- **Only in this folder by default.** Want Jarvis in every folder? `jarvis install claude-code --global`.
+- The wizard makes the folder a private git repo. If you push it anywhere, keep that remote **private**.
 
-**Portable core (works in every harness)**
-- `core/AGENTS.md.tmpl` + `core/roles/`: identity, rendered with your role/tone/autonomy by `jarvis render`
-- `skills/`: Agent Skills (`SKILL.md`), linked into each harness's skills folder
-- `mcp/jarvis_mcp.py`: the Jarvis MCP server (vault search/read/write with the rules enforced, now.md,
-  recall, proposals, onboarding, settings, status). Standard-library Python, no install
-- `hooks/recall.py`: per-message recall for harnesses with Claude-style hooks (Claude Code, Codex)
-- `.claude-plugin/` + `.mcp.json` + `hooks/hooks.json`: installs as a plugin in Claude Code (and Codex/OpenClaw)
+## How it works day to day
 
-**Home runtime (always-on):** Hermes by default: Telegram, scheduled routines, the voice app's API.
-Routines can instead run on this Mac through Claude Code or Codex (launchd), or on OpenClaw.
+- **Short-term memory:** `knowledge/now.md` (this week's focus, open loops, next 7 days) is read at the
+  start of every conversation and rewritten every night.
+- **Recall:** mention a person, client or project and Jarvis pulls in its page automatically.
+- **Filing:** tell it something worth keeping and it files it on the right page, logging every change in
+  `log.md`. Your own pages in `me/` are never edited without a yes (changes are proposed in
+  `me/_proposals.md`).
+- **Routines:** a morning briefing, a weekly review, and a nightly memory refresh and tidy-up.
+- **Frameworks:** proven ways of thinking Jarvis runs with you (below).
+- **Sub-agents:** a librarian, researcher, critic and creative it hands work to (below).
 
-## Plug Jarvis into a harness
+## Routines
 
-```bash
-jarvis install claude-code      # or: codex | deepseek | hermes | openclaw | cursor | gemini | claude-desktop | all
-jarvis doctor                   # what's installed where
-jarvis render                   # re-apply identity after changing role/tone/autonomy (tools do this for you)
-jarvis uninstall codex          # removes only what Jarvis added
-```
+Everything runs locally on your Mac. Jarvis sets up the routines you pick in onboarding, where you
+actually use it:
 
-| Harness | Skills | Identity | Tools | Recall |
-|---|---|---|---|---|
-| Claude Code | `~/.claude/skills` | `@~/.jarvis/AGENTS.md` in `~/.claude/CLAUDE.md` | MCP (`claude mcp add`) | hook |
-| Codex | `~/.agents/skills` | `~/.codex/AGENTS.md` | MCP | hook |
-| DeepSeek Harness | `~/.agents/skills` | `~/.dsh/AGENTS.md` | MCP (cordis patch) | `jarvis_recall` tool |
-| Hermes | repo `skills/` | `~/.hermes/SOUL.md` | MCP | plugin |
-| OpenClaw | `~/.agents/skills` | workspace `AGENTS.md` | MCP | `jarvis_recall` tool |
-| Cursor / Gemini CLI | `~/.agents/skills` | User Rules / `~/.gemini/GEMINI.md` | MCP | tool |
-| Claude desktop app | upload zips (`jarvis export-skills`) | via the MCP server's instructions | MCP | tool |
+| You use | Routines run as | Turn off, edit, change time |
+|---|---|---|
+| Claude desktop app | Local routines (the app's Routines page) | On the Routines page, or ask Jarvis |
+| Claude Code in the terminal, or Codex | macOS launchd jobs (`jarvis schedule install`) | Content: `me/routines.md`. Times and on/off: re-run `jarvis schedule install` (automatic sync is coming) |
+| Hermes | Hermes cron | Ask Jarvis, or `hermes cron list` |
 
-**As a plugin** (Claude Code; Codex and OpenClaw read the same format):
-```bash
-claude plugin marketplace add ~/Documents/jarvis
-claude plugin install jarvis@jarvis
-```
-Use either the plugin or `jarvis install claude-code` for Claude Code, not both.
+What each routine covers lives in `knowledge/me/routines.md`, which you can edit in Obsidian or change by
+chat ("move my briefing to 8", "stop the weekly review", "add email highlights"). Scheduled runs use the
+lighter model (Sonnet 5 or GPT-6 Luna). Routines only run while the Mac is awake; a missed one runs
+when it wakes (in the desktop app: when the app is next open).
 
-**Scheduled routines elsewhere:** `jarvis schedule install --runner hermes | launchd-claude |
-launchd-codex | openclaw | claude-routines`. Local runners keep the vault on your Mac; Claude cloud
-routines need it in a private GitHub repo (the command explains).
+| Routine | When | What |
+|---|---|---|
+| Morning briefing | Your time, e.g. 07:30 | Top 3 for today, heads-ups, people to reach out to |
+| Weekly review | Your day, 18:00 | Wins, goals progress, 168 audit if you use it |
+| Nightly memory refresh | 01:30 | Files the day's facts and promises, rewrites `now.md` |
+| Nightly tidy-up | 02:00 | Inbox, broken links, duplicates |
 
-## Quick start (MacBook, Apple Silicon)
+## Frameworks
 
-```bash
-jarvis setup hermes      # from the repo: bin/jarvis setup hermes
-```
+Proven ways of thinking Jarvis can run with you. The frameworks live in `.jarvis/frameworks/` (ours,
+updated); your results live in `knowledge/frameworks/<name>/` (yours, never touched).
 
-The script is interactive and safe to re-run. It:
+| Framework | What it does |
+|---|---|
+| 168-hour week | Budget your week like money: sleep, health and people first, work gets the rest. Audited weekly |
+| AIOO | Actions × Inputs → Outputs → Outcome: plan backwards; when nothing moves, fix purpose first |
+| Declarations | Goals written as who you are ("I am…"), read daily, reviewed against reality |
+| Deal cards | A card for every live opportunity (context, BANT, next step), tied to the person |
 
-1. Installs Hermes if missing (official installer; or use the [Hermes desktop app](https://hermes-agent.nousresearch.com/desktop)).
-2. Connects a model: **Claude subscription** (experimental plugin via the `claude` CLI), **ChatGPT/Codex
-   subscription**, Nous Portal, or an API key.
-3. Installs the `jarvis` command and plugs Jarvis into Hermes (identity, MCP tools, recall), then offers to plug it into every other AI tool it finds (Claude Code, Codex, DeepSeek Harness, OpenClaw, Cursor, Gemini, Claude app).
-4. Enables the local API server (127.0.0.1:8642) for the voice client.
-5. Connects Telegram: QR code, existing token, or a walkthrough. Skippable.
-6. Installs the gateway as a login service so briefings and Telegram keep running.
-7. Offers Telegram as one DM, topics in your DM (Inbox, Work, Life, Briefings, General), or a group
-   with topics, or skip for later (`adapters/hermes/telegram_mode.sh`).
-8. Offers to scan Documents, Desktop, Downloads and cloud drives for client and project folders (names
-   only) so onboarding can bring them in (`jarvis-import`). Originals are never moved or changed.
-9. Sets up desk voice: fetches the [`jarvis-voice`](https://github.com/JohannsenLum/jarvis-voice) repo listed in `deps.env` if it
-   isn't next to this folder, then installs it. Jev key optional (blank = standard mode).
-
-Then say hi (`hermes --tui`, the Hermes app, or your Telegram bot). Jarvis runs onboarding by itself.
-
-## Onboarding
-
-`skills/jarvis/jarvis-onboarding` interviews you step by step with tap-to-answer questions (Telegram
-shows buttons; the terminal shows a numbered menu). Every question can be skipped. Skipped questions are
-saved to `knowledge/me/onboarding.json` → `pending`, and Jarvis offers to finish them later, or you say
-"finish onboarding". Your answers pick the folder layout: agency, employee, founder/CEO, freelancer,
-student, plus the life areas you choose.
+Say "let's do the 168", "run AIOO on this goal" or "make a deal card for this". Jarvis also offers one
+when it fits. From [twiss-io/lifeos-plugin](https://github.com/twiss-io/lifeos-plugin); see
+`frameworks/README.md`.
 
 ## Roles
 
-Jarvis has one identity (rendered from `core/AGENTS.md.tmpl` into every harness) with three settings chosen in onboarding:
-
 | Setting | Options |
 |---|---|
-| Role (`core/roles/`) | **Chief of Staff** (default): runs your priorities, preps you, pushes back · **Executive Assistant**: calendar, admin, logistics · **Thinking Partner**: strategy and decisions, challenges you · **Coach**: goals, habits, accountability · **Life Manager**: family, home, money, personal time |
+| Role | **Chief of Staff** (default): runs your priorities, preps you, pushes back · **Executive Assistant**: calendar, admin, logistics · **Thinking Partner**: strategy and decisions · **Coach**: goals, habits, accountability · **Life Manager**: family, home, money |
 | Tone | warm · formal · direct |
-| Autonomy | ask-first · act-and-tell (default) · handle-quietly. Sending, spending, deleting and editing `me/` always ask. |
+| Autonomy | ask-first · act-and-tell (default) · handle-quietly |
 
-Borrow a role for one conversation ("thinking partner mode: should I raise prices?") or change it for
-good ("from now on, be my coach"). Settings live in `me/onboarding.json`; the `jarvis_settings` tool
-updates them and re-renders the identity in every connected harness.
-
-## Talking at your desk
-
-```bash
-jarvis-voice              # say "Jarvis, …", or tap/hold Caps Lock and speak
-jarvis-voice --hold       # Caps Lock only
-jarvis-voice --open-mic   # start with the open mic on
-jarvis-voice --task "find flights to Tokyo on Google Flights"   # multi-step web task in Chrome
-```
-
-Say "Jarvis, open mic" / "Jarvis, close mic" to toggle an open mic without restarting.
-
-| Mode | Needs | Mac commands ("open Slack", "volume down") | Everything else |
-|---|---|---|---|
-| Jev fast | `TYPESAFE_API_KEY` in `~/.jarvis-voice/.env` | Instant, via Jev (~0.25–0.65s); multi-step web tasks run in Chrome via jev-ultrafast | Sent to Jarvis |
-| Standard | nothing | Sent to Jarvis (it has computer-use tools) | Sent to Jarvis |
-
-Unnamed background speech can only trigger quick Mac actions (Jev mode). It is never sent to Jarvis
-unless you say its name, hold the key, or turn on the open mic.
-
-## Layout
-
-```
-core/                 identity template, roles, jarvis_core (vault rules, recall, identity rendering)
-mcp/jarvis_mcp.py     Jarvis MCP server (every harness)
-hooks/                recall hook + plugin hooks.json
-agents/               Claude Code sub-agents: librarian, researcher, critic, creative
-skills/jarvis/        onboarding, settings, connections, telegram, import, models, brain, routines…
-skills/packs/         agency · employee · ceo · freelancer skill packs
-skills/vendor/        third-party skills (fireworks-tech-graph)
-skills/learned/       skills Jarvis writes for itself (git-ignored in the template)
-bin/jarvis            the CLI (install, doctor, render, schedule, export-skills)
-bin/fireworks         diagram launcher (PNG/GIF)   bin/scan_folders.py  existing-files scanner
-knowledge/            your vault (Obsidian)
-.claude-plugin/       plugin + marketplace manifests
-adapters/hermes/      optional Hermes home: setup.sh (`jarvis setup hermes`), recall plugin, Telegram modes
-```
+At every level Jarvis asks before sending, posting, spending money or credits, deleting, changing
+events other people attend, or editing `me/`. Borrow a role for one conversation ("thinking partner
+mode: should I raise prices?") or change it for good ("from now on, be my coach").
 
 ## Sub-agents
 
-Four workers Jarvis hands jobs to in Claude Code (elsewhere Jarvis does these jobs itself, same rules).
-Each exists for a structural reason (a clean context, limited permissions, a different model, or
-independence), not for domain knowledge, which lives in skills.
+In tools that support them (Claude Code), Jarvis hands jobs to four workers. Each exists for a reason: a
+clean context, limited permissions, a different model, or independence. Domain know-how (sales,
+development) lives in skills, not agents.
 
 | Sub-agent | Job | Model | Can't |
 |---|---|---|---|
-| librarian | File into the vault, nightly consolidation, tidy-up | Sonnet 5 | browse the web, send, delete |
-| researcher | Web and vault research, sourced summaries | Sonnet 5 | write anything (keeps untrusted web content away from memory) |
+| librarian | Filing, nightly memory refresh, tidy-up | Sonnet 5 | browse the web, send, delete |
+| researcher | Web and vault research, sourced summaries | Sonnet 5 | write anything (keeps web content out of memory) |
 | critic | Independent second opinion, pre-mortems | Opus 5.5 | change anything |
-| creative | Higgsfield images and video, diagrams | Sonnet 5 | publish, or spend credits without a yes or a standing budget |
+| creative | Higgsfield images and video, diagrams | Sonnet 5 | publish, or spend credits without a yes |
 
 ## Connections
 
-Jarvis recommends eight, set up one at a time by the `jarvis-connections` skill (during onboarding,
-or say "connect my Google" any time). Each can be skipped and finished later.
+Set up one at a time in onboarding, or later ("connect my Google"). Each can be skipped.
 
-| Connection | Gives Jarvis | Setup |
+| Connection | Gives Jarvis |
+|---|---|
+| Google | Gmail, Calendar, Drive, Docs, Sheets, Contacts |
+| Apple | Reminders, Notes, iMessage |
+| Obsidian | Your vault, with graph view and backlinks |
+| Work files | Word, Excel, PowerPoint, PDF |
+| GitHub · Vercel · Cloudflare | Code, deployments, domains |
+| Higgsfield | AI images and video (uses your credits, asks first) |
+
+Tokens and passwords never go through chat.
+
+## Models
+
+| Connected | Chats | Scheduled jobs |
 |---|---|---|
-| Google | Gmail, Calendar, Drive, Docs, Sheets, Contacts | Built-in skill, one-time Google OAuth (~10 min) |
-| Apple | Reminders, Notes, iMessage, Find My | Built-in skills + small Homebrew tools, macOS permissions |
-| Obsidian | Opens the vault | Built-in skill, pointed at `knowledge/` by setup |
-| Work files | Word, Excel, PowerPoint, PDF | Built-in, no login |
-| GitHub | Repos, issues, PRs | Built-in skill via `gh auth login` |
-| Vercel | Deployments, logs, projects | Official hosted MCP, browser approval |
-| Cloudflare | DNS, Workers, domains | Official hosted MCP, browser approval |
-| Higgsfield | AI images and video, upscaling, voice, presets | Official hosted MCP by URL, Higgsfield login; uses your credits, asks before generating |
+| Claude subscription | Opus 5.5 | Sonnet 5 |
+| ChatGPT/Codex subscription | GPT-6 Sol | GPT-6 Luna |
+| Both | The one you choose leads; the other takes over if it's down or rate-limited | |
 
-Sending, posting, deploying, DNS changes, spending credits and deleting always ask first. Hermes' built-in `llm-wiki`
-skill is turned off so the vault stays the one brain.
+Setup detects what you're already signed in to and only asks about what it can't find. Ask for a
+specific model for one job any time ("use GPT Astra for the pricing analysis").
 
-## How the brain grows
+## Works with
 
-- **During the day:** Jarvis files things you ask it to save (`brain-ingest`), and the `jarvis-recall`
-  plugin adds `now.md` plus short notes on any person, client or project you mention to each message
-  (local file reads, nothing added when nothing matches).
-- **01:30 nightly:** `brain-consolidate` reads the day's conversations and files facts, commitments and
-  decisions, queues suggested changes to `me/` in `me/_proposals.md`, saves working preferences to
-  Hermes memory, and rewrites `now.md`.
-- **02:00 nightly:** `brain-lint` tidies: inbox, broken links, duplicates, stale pages.
-- **Always:** Hermes' own learning loop writes and refines skills for recurring tasks.
+In your Jarvis folder, Claude Code, Codex and Gemini pick Jarvis up automatically. For other tools, or to
+have Jarvis everywhere:
 
-**Models:** connect Claude, ChatGPT/Codex, or both. Normal conversations use the strong model and
-everything scheduled (briefing, review, nightly consolidation, tidy-up, imports) uses the lighter one:
+```bash
+jarvis install claude-code --global   # or: codex | deepseek | hermes | openclaw | cursor | gemini | claude-desktop | all
+jarvis doctor                         # what's installed where
+jarvis uninstall codex                # removes only what Jarvis added
+```
 
-| Connected | Chats | Scheduled jobs | Backup |
-|---|---|---|---|
-| Claude subscription | Opus 5.5 | Sonnet 5 | – |
-| ChatGPT/Codex subscription | GPT-6 Sol | GPT-6 Luna | – |
-| Both (Claude leads, recommended) | Opus 5.5 | Sonnet 5 | Codex GPT-6 Sol takes over if Claude is down or rate-limited |
-| Both (Codex leads) | GPT-6 Sol | GPT-6 Luna | Claude Opus 5.5 |
+| Tool | Skills | Identity | Jarvis tools | Recall |
+|---|---|---|---|---|
+| Claude Code (app and terminal) | `.claude/skills` | `CLAUDE.md` | MCP | hook |
+| Codex | `.agents/skills` | `AGENTS.md` | MCP | hook |
+| Gemini CLI | `.agents/skills` | `GEMINI.md` | MCP | tool |
+| Cursor, DeepSeek Harness, OpenClaw | `~/.agents/skills` | rules / `AGENTS.md` | MCP | tool |
+| Hermes | skills dir | `SOUL.md` | MCP | plugin |
+| Claude desktop chat | upload zips (`jarvis export-skills`) | MCP instructions | MCP | tool |
 
-Setup first detects what's already signed in (Claude Code login, Codex login, Nous, API keys) and
-only asks about what it can't find.
+It also installs as a Claude Code plugin (`claude plugin marketplace add <this repo>` then
+`claude plugin install jarvis@jarvis`). Use either the plugin or `jarvis install`, not both.
 
-**Using a specific model for one job:** say "use GPT Astra for the pricing analysis" or "use Opus
-for this proposal". The `jarvis-models` skill puts the job on Hermes' task board pinned to that model;
-the gateway runs it and the result comes back in the same chat. Coding jobs can go to the Codex or
-Claude Code agents instead. To switch the whole conversation, type `/model <model>`; to change the
-default, `hermes model`.
+## Advanced: Hermes as an always-on home
 
-## Dashboards
+For Telegram and desk voice today, Jarvis can live in [Hermes Agent](https://hermes-agent.nousresearch.com)
+on your Mac. Telegram and voice through Claude are coming.
 
-- **Hermes dashboard** (`hermes dashboard`): token usage (Analytics), sessions, cron jobs, skills, logs.
-- **Hermes desktop app**: live sub-agents, Memory Graph, HUD mode, voice.
-- **Obsidian**: open `knowledge/` as a vault for the brain, graph view and backlinks.
-- Planned: a Jarvis dashboard plugin (work pipeline, goals, people overdue) using Hermes' dashboard plugin SDK.
+```bash
+jarvis setup hermes           # guided, re-runnable
+jarvis setup hermes --voice   # just the desk voice app
+```
 
-## Platform
+It installs Hermes if needed, connects your Claude or ChatGPT subscription, plugs Jarvis in, and
+optionally sets up:
 
-MacBook only for now (Apple Silicon, macOS). Everything runs natively on the Mac: Hermes, the gateway,
-the voice client and the vault. Jarvis is reachable on Telegram while the Mac is awake; scheduled jobs
-that fall while it sleeps run when it wakes. Docker and server hosting are out of scope for this version.
+- **Telegram:** a DM, topics in your DM, or a group with topics (`adapters/hermes/telegram_mode.sh`).
+- **The gateway** as a login service.
+- **Desk voice** ([`jarvis-voice`](https://github.com/JohannsenLum/jarvis-voice)): say "Jarvis, …" or hold
+  the talk key. The optional Jev key makes Mac commands instant. By default the talk key replaces Caps
+  Lock; undo with `~/Documents/jarvis-voice/scripts/uninstall-capslock.sh`.
+
+Hermes also brings its own dashboard (`hermes dashboard`: usage, sessions, cron).
 
 ## Privacy
 
-`life/health`, `life/finance`, `relationships/` and `journal/` default to local-only. Keys and tokens
-live in `~/.hermes/.env` and `~/.jarvis-voice/.env` (mode 600), never in the vault or in chat. Keep `knowledge/`
-in its own private repo if you want history.
+- The vault is never shared. `life/health`, `life/finance`, `relationships/`, `journal/` and
+  `frameworks/declarations/` default to local-only, and Jarvis never pastes them into other tools or
+  group chats.
+- Keys and tokens live in env files with mode 600 (for example `~/.hermes/.env`), never in the vault or chat.
+- Content from the web, email or documents is treated as information, not instructions.
+
+## Platform
+
+macOS only for now (Apple Silicon). Everything runs natively on your Mac; no Docker, no server.
+
+## Repo layout
+
+```
+core/            identity template, roles, jarvis_core (vault rules, recall, identity, frameworks)
+mcp/             the Jarvis MCP server (standard-library Python)
+hooks/           recall hooks
+agents/          librarian, researcher, critic, creative
+skills/          jarvis/ (onboarding, routines, brain, frameworks…) · packs/ (agency, employee, CEO, freelancer) · vendor/
+frameworks/      168, AIOO, declarations, deal cards
+adapters/hermes/ optional Hermes home: setup, recall plugin, Telegram modes
+bin/             jarvis CLI, create-jarvis wizard, scheduler, helpers
+knowledge/       vault template (SCHEMA.md, page templates)
+.claude-plugin/  Claude Code plugin manifests
+```

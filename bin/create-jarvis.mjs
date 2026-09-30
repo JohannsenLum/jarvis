@@ -206,9 +206,10 @@ async function main() {
   console.log(`
 ${gold(bold(`  ${name} is ready.`))}
 
-  Start talking:        ${bold(`cd ${dir} && claude`)}
-                        ${dim(`(also works with codex, gemini, grok and others opened in this folder)`)}
-  ${name} picks up onboarding from here: people, goals, connections. Skip anything.
+  Start talking:        open ${bold(dir)} in the Claude app (Code), or ${bold(`cd ${dir} && claude`)}
+                        ${dim(`(also works with codex, gemini and others opened in this folder)`)}
+  Say hi. ${name} takes you through five short chapters (about eight minutes) and builds your
+  second brain as you answer. Skip anything, pause any time.
 
   Your vault:           ${kv}   ${dim("(open it in Obsidian)")}
   Your own skills:      ${path.join(dir, "skills")}   ${dim("(yours win over Jarvis's; updates never touch them)")}

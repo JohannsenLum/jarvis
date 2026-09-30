@@ -11,11 +11,17 @@ metadata:
 # Morning briefing
 
 ## Procedure
+0. Read `me/routines.md` → `Morning briefing`. If it's `off`, stop (unless the user asked). Its
+   `Include:` / `Skip:` lines decide which parts below to cover; with no file, cover everything.
+   If `now.md`'s `Updated:` date is more than 2 days old, add a heads-up that the nightly memory
+   refresh isn't running.
 1. Read `now.md`, `me/goals/<year>.md`, `me/profile.md`, yesterday's `journal/daily/` page if any, and
    last night's `consolidate` line in `log.md`.
 2. Gather today: calendar (if a calendar tool is connected), tasks and due dates across `work/**`
    (`due:` and unchecked `- [ ]` items), `relationships/events.md` (birthdays in the next 7 days),
    people overdue per `relationships/circles.md`, and last night's lint notes.
+   Started frameworks: `frameworks/deal-cards/cards/` follow-ups due today, and a one-line 168 check
+   (today's calendar vs `frameworks/168/budget.md`) if a budget exists.
 3. Pick **three priorities** for today. Prefer items tied to a goal; say which goal.
 4. Write `journal/daily/YYYY-MM-DD.md` (type: review, status: draft) with the full briefing.
 5. Send a short message in your configured tone and role (a Chief of Staff leads with priorities and
