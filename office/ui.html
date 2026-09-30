@@ -72,7 +72,7 @@ main{flex:1;display:grid;grid-template-columns:1fr minmax(320px,420px);min-heigh
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:inherit}
 .chip.working{border-color:var(--work);color:var(--work)}
 .po-wrap{position:relative;margin:0 auto;width:max-content;max-width:100%}
-.po-wrap canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;border-radius:14px;background:radial-gradient(ellipse at 50% 40%,#2A3340,#10161C 70%)}
+.po-wrap canvas{display:block;border-radius:16px;background:radial-gradient(ellipse at 50% 45%,#2B3A4D,#121A24 72%)}
 .po-overlay{position:absolute;inset:0;pointer-events:none}
 .po-hit{position:absolute;pointer-events:auto;background:none;border:0;cursor:pointer;padding:0;border-radius:6px}
 .po-hit:hover,.po-hit:focus-visible{outline:2px dashed rgba(255,255,255,.55);outline-offset:2px}
@@ -234,7 +234,7 @@ main{flex:1;display:grid;grid-template-columns:1fr minmax(320px,420px);min-heigh
   </aside>
 </main>
 <div class="toast" id="toast"></div>
-<script src="/pixel-office.js"></script>
+<script src="/office-scene.js"></script>
 <script src="/ops-view.js"></script>
 <script>
 const TOKEN = "__UI_TOKEN__";

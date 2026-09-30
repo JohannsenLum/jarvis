@@ -265,7 +265,7 @@ const server = http.createServer(async (req, res) => {
       return res.end(html);
     }
     if (url.pathname === "/favicon.ico") { res.writeHead(204); return res.end(); }
-    if (req.method === "GET" && ["/pixel-office.js", "/ops-view.js"].includes(url.pathname)) {
+    if (req.method === "GET" && ["/office-scene.js", "/ops-view.js"].includes(url.pathname)) {
       res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
       return res.end(fs.readFileSync(path.join(HERE, url.pathname.slice(1))));
     }
