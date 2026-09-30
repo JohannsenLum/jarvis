@@ -181,6 +181,8 @@
     }
     ctx.fillStyle = "rgba(255,255,255,.16)"; ctx.beginPath(); ctx.moveTo(b.x - w / 2, b.y - 32); ctx.lineTo(b.x - w / 2 + 9, b.y - 32); ctx.lineTo(b.x - w / 2, b.y - 19); ctx.fill();
   }
+  // A mug big enough to read when someone carries it (size 1 on desks, bigger in hand).
+  function bigMug(x, y) { ctx.save(); ctx.translate(x, y); ctx.scale(1.8, 1.8); ctx.translate(-x, -y); mug(x, y, "#FF8A3D", true); ctx.restore(); }
   function mug(x, y, color, steam) {
     rr(x - 4, y - 9, 8, 9, 2, color, "rgba(0,0,0,.25)"); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + 5, y - 5, 2.5, -1.2, 1.2); ctx.stroke();
     if (steam) { ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.lineWidth = 1.4; for (let i = 0; i < 2; i++) { const o = Math.sin(now / 300 + i) * 2; ctx.beginPath(); ctx.moveTo(x - 1 + i * 3, y - 11); ctx.quadraticCurveTo(x + o + i * 3, y - 16, x - 1 + i * 3, y - 21); ctx.stroke(); } }
@@ -340,12 +342,12 @@
     else if (walking) { const sw = Math.sin(T * 11) * 5; hands = [[x - 15, bodyTop + 23 + sw], coffee ? [x + 13, bodyTop + 12] : [x + 15, bodyTop + 23 - sw]]; }
     else hands = [[x - 15, bodyTop + 24], [x + 15, bodyTop + 24]];
     const behind = pose === "stretch" || pose === "wave" || back;
-    if (behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (coffee && back) mug(hands[1][0] + 3, hands[1][1] + 2, "#FFFFFF", true); }
+    if (behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (coffee && back) bigMug(hands[1][0] + 3, hands[1][1] + 4); }
     const sg = ctx.createLinearGradient(x - 14, 0, x + 14, 0); sg.addColorStop(0, mix(look.shirt, 0.2)); sg.addColorStop(1, mix(look.shirt, -0.18));
     rr(x - 14, bodyTop, 28, 30, 11, sg, outline);
     if (!back) { ctx.fillStyle = "#FFFFFF"; ctx.beginPath(); ctx.moveTo(x - 5, bodyTop + 1); ctx.lineTo(x, bodyTop + 7); ctx.lineTo(x + 5, bodyTop + 1); ctx.fill(); }
     if (look.tie && !back) { ctx.fillStyle = look.tie; ctx.beginPath(); ctx.moveTo(x - 2.5, bodyTop + 6); ctx.lineTo(x + 2.5, bodyTop + 6); ctx.lineTo(x + 3.5, bodyTop + 20); ctx.lineTo(x, bodyTop + 24); ctx.lineTo(x - 3.5, bodyTop + 20); ctx.fill(); }
-    if (!behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (pose === "sip" || coffee) mug(hands[1][0] + 4, hands[1][1] + 6, "#FFFFFF", true); }
+    if (!behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (pose === "sip" || coffee) bigMug(hands[1][0] + 4, hands[1][1] + 8); }
     const tilt = pose === "sit-think" ? 0.14 : pose === "look" ? Math.sin(T * 1.3) * 0.2 : pose === "stretch" ? -0.08 : 0;
     const hx = x + tilt * 16, hy = bodyTop - 16;
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(tilt * 0.6);
