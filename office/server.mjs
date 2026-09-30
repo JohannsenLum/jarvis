@@ -43,23 +43,28 @@ const hookNonces = new Map();
 const cache = new Map();                       // file -> { size, mtime, entries }
 
 function readJsonl(file) {
-  let st;
-  try { st = fs.statSync(file); } catch { return { entries: [], mtime: 0 }; }
-  const hit = cache.get(file);
-  if (hit && hit.size === st.size) return hit;
-  let entries = hit && st.size > hit.size ? hit.entries : [];
-  const start = hit && st.size > hit.size ? hit.size : 0;
-  const fd = fs.openSync(file, "r");
-  const buf = Buffer.alloc(st.size - start);
-  fs.readSync(fd, buf, 0, buf.length, start);
-  fs.closeSync(fd);
-  const text = (hit?.tail || "") + buf.toString("utf8");
+  let fd, st, hit, entries, start, text;
+  try {
+    fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NONBLOCK | fs.constants.O_NOFOLLOW);
+    st = fs.fstatSync(fd);
+    if (!st.isFile()) return { entries: [], mtime: 0 };
+    hit = cache.get(file);
+    if (hit && hit.size === st.size && hit.mtime === st.mtimeMs) return hit;
+    const growing = hit && hit.ino === st.ino && st.size > hit.size;
+    entries = growing ? hit.entries : [];
+    start = growing ? hit.size : 0;
+    const buf = Buffer.alloc(st.size - start);
+    const bytes = fs.readSync(fd, buf, 0, buf.length, start);
+    text = (growing ? hit.tail || "" : "") + buf.subarray(0, bytes).toString("utf8");
+    st = { ...st, size: start + bytes };
+  } catch { return { entries: [], mtime: 0 }; }
+  finally { if (fd !== undefined) fs.closeSync(fd); }
   const lines = text.split("\n");
   const tail = lines.pop();                    // possibly incomplete last line
   for (const line of lines) {
     try { entries.push(JSON.parse(line)); } catch { /* skip */ }
   }
-  const rec = { size: st.size, mtime: st.mtimeMs, entries, tail };
+  const rec = { size: st.size, mtime: st.mtimeMs, ino: st.ino, entries, tail };
   cache.set(file, rec);
   return rec;
 }
@@ -480,7 +485,7 @@ const server = http.createServer(async (req, res) => {
   } catch (e) {
     if (!res.destroyed && !res.headersSent) {
       if (e.status === 413) { res.setHeader("Connection", "close"); res.on("finish", () => req.destroy()); }
-      send(res, e.status || 500, { error: e.status ? e.message : "Request failed" });
+      send(res, e.status === 413 ? 413 : e.status === 400 ? 400 : 500, { error: e.status === 413 ? "Request too large" : e.status === 400 ? "Invalid request" : "Request failed" });
     }
   }
 });
