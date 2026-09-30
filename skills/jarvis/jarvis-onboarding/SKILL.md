@@ -34,6 +34,17 @@ go in its choices, not in the question text. Design for at most 4 questions per 
 question plus the free-text "Other" row. Recommended choice first. With no question tool, ask in plain
 text with numbered options and accept free text.
 
+**Open questions: one at a time, with a picker when you can.** Never send a numbered list of open
+questions to answer in one reply. Ask each one on its own, one short line, and wait.
+- If you can suggest likely answers, ask it with the question tool instead: the suggestions are the
+  choices and the user types anything else in "Other". Sources for suggestions: what the installer
+  saved, the existing-folders scan (client and project folder names), a connected calendar or contacts
+  (frequent names), and earlier answers. Example: "Who are your current clients?" multi-select
+  `Brightlabs`, `Nomi`, `Kopi Co` (from folder names), Other to add more.
+- No suggestions available: ask in plain text, one question, and accept a free-text answer. Mention
+  "or skip".
+- Batch only choice questions (up to 4 per call). Open questions never share a message.
+
 **Show, don't tell.** Where your question tool supports option previews (Claude Code), use them for the
 choices that change how you behave. Each preview is a short sample of what that choice feels like
 (see Chapter 1). No previews available: put a four-to-six-word taste in the choice label instead.
@@ -119,29 +130,31 @@ Batch A (skip work if the installer asked it):
 - "Which parts of life should I help with?" multi-select: `Health`, `Fitness`, `Money`, `Home & admin`
 - "Any of these too?" multi-select: `Learning`, `Creative work`, `Travel`, `Faith & reflection`
 
-Batch B, only for the work types chosen (open questions, one call):
+Then, only for the work types chosen, one question at a time (picker when you have suggestions):
 - Agency: company name · current clients (comma-separated)
 - Employee: company and role
 - Founder/CEO: company name · stage (`Seed or earlier`, `Series A+`, `Bootstrapped`, `Skip for now`)
 - Freelancer: current clients
 - Student: where and what
-Then: "Who matters most in your life? Name and relationship, e.g. Sam (partner), Mum, Wei Ling (close
-friend), David (mentor)." (open). Sort into circles (partner, family, close, mentor, network), asking
+Then, on its own: "Who matters most in your life? Name and relationship, e.g. Sam (partner), Mum,
+Wei Ling (close friend), David (mentor)." (open; if contacts are connected, offer frequent names as a
+multi-select picker first). Sort into circles (partner, family, close, mentor, network), asking
 only if truly unclear. Confirm the list back in one line.
 
 **Build live:** work folders from the templates, one page per client and per person (`_templates/`),
 the tree, then: "Mention any of them and I'll bring the context."
 
 ### Chapter 3 · What matters (steps `goals`, `principles`)
-- "What are the one to three things you most want to make happen this year?" (open)
+- First, on its own: "What are the one to three things you most want to make happen this year?" (open)
+- Then one batch of the choice questions below.
 - "Which ideas do you want to decide by?" multi-select: `Eisenhower matrix`, `Dichotomy of control`,
   `Regret minimization`, `80/20 rule` (others via Other: first principles, pre-mortem, deep work…)
-- "Any rules of your own you live by? One per line, or skip." (open)
 - "Want to try one of my frameworks after setup?" `168-hour week: budget your time`,
   `Declarations: goals as who you are`, `AIOO: plan backwards from the outcome`,
   `Deal cards: track opportunities` (Other / skip = none; add to `pending`). Deal cards suit people
   with clients or deals. Record as `framework_next`; don't run it now.
 
+After the batch, on its own: "Any rules of your own you live by? One per line, or skip." (open)
 React to the goals with one specific line (what you'll watch for, what might get in the way).
 **Build live:** `me/goals/<year>.md` and `me/principles.md` as drafts (`status: draft`), chosen decision
 frameworks to `me/frameworks/<slug>.md`, and a first `now.md`. Show it: "This is my short-term memory.
@@ -241,7 +254,8 @@ scan, show, ask, map) and record choices as `queued` in `imports`. The import it
    - Mention they can open `knowledge/` in Obsidian to see everything.
 
 ## Pitfalls
-- Asking more than 4 questions in one call, or re-asking what the installer already saved.
+- Asking more than 4 questions in one call, putting several open questions in one message, or
+  re-asking what the installer already saved.
 - Long messages. Every message before a question batch is one to three lines.
 - Inventing details for skipped questions. Leave them out and list them in `pending`.
 - Creating `work/` folders for types the user didn't pick, or empty placeholder folders.
