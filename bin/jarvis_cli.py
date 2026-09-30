@@ -516,7 +516,7 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
             print("The office dashboard isn't running.")
         return
     if action == "status":
-        print(f"Dashboard: {'running at http://127.0.0.1:%d' % port if _office_up(port) else 'not running'}")
+        print(f"Dashboard: {'running at http://127.0.0.1:%d' % port if _office_up(port) else 'not running (log: ' + str(OFFICE_DIR / 'server.log') + ')'}")
         tm = _tmux()
         alive = bool(tm) and subprocess.run([tm, "has-session", "-t", "jarvis"], capture_output=True).returncode == 0
         print(f"Claude session (tmux 'jarvis'): {'running' if alive else 'not running'}")
@@ -538,8 +538,18 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
             import time
             time.sleep(0.1)
     url = f"http://127.0.0.1:{port}"
-    print(f"✓ Office dashboard: {url}")
-    subprocess.run(["open", url], capture_output=True)
+    if _office_up(port):
+        print(f"✓ Office dashboard: {url}")
+        subprocess.run(["open", url], capture_output=True)
+    else:
+        log_tail = ""
+        try:
+            log_tail = "\n".join((OFFICE_DIR / "server.log").read_text().splitlines()[-8:])
+        except OSError:
+            pass
+        ver = subprocess.run([node, "--version"], capture_output=True, text=True).stdout.strip()
+        print(f"! The office dashboard didn't start (node {ver or '?'} at {node}).\n"
+              f"  Last lines of {OFFICE_DIR / 'server.log'}:\n{log_tail or '  (empty)'}")
     if not tm:
         brew = shutil.which("brew") or next((p for p in ("/opt/homebrew/bin/brew", "/usr/local/bin/brew") if Path(p).exists()), None)
         if brew and sys.stdin.isatty():
