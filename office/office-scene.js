@@ -5,7 +5,12 @@
 // Earlier versions: git tags office-v1 (cosy) and office-v2 (grey open-plan).
 // API: PixelOffice.mount(el, onSelect) · PixelOffice.update(state, selected)
 (() => {
-  const W = 20, D = 14, TW = 64, TH = 32, WALL = 160;
+  // Layout: 10 desks (default) or 20 desks (?desks=20, or the toggle under the office). The 20-desk room is
+  // DX tiles wider and DY tiles deeper; everything on the right (pantry, WC, L-desks) shifts by DX, everything
+  // at the front (Jarvis, meeting table) by DY.
+  const BIG = (() => { try { return new URLSearchParams(location.search).get("desks") === "20" || localStorage.getItem("office-desks") === "20"; } catch { return false; } })();
+  const DX = BIG ? 4 : 0, DY = BIG ? 3 : 0;
+  const W = 20 + DX, D = 14 + DY, TW = 64, TH = 32, WALL = 160;
   const CW = 40 + (W + D) * TW / 2 + 40, CH = WALL + 60 + (W + D) * TH / 2 + 30;
   const OX = 40 + D * TW / 2, OY = WALL + 60;
   const P_SCALE = 0.9;
@@ -31,17 +36,24 @@
   const SEG_W = 2.3;
   const SEATS = [];
   const bench = (x0, gy, n, owners) => { for (let i = 0; i < n; i++) SEATS.push({ seg: [x0 + i * SEG_W, gy, SEG_W, 1.1], owner: owners[i] || null, kind: "bench", row: gy }); };
-  bench(2.0, 2.3, 4, ["librarian", "researcher", "creative", null]);
-  bench(2.0, 6.0, 4, ["critic", null, null, null]);
-  SEATS.push({ seg: [13.4, 3.0, 2.5, 1.05], owner: null, kind: "L", side: [15.0, 4.05, 0.9, 1.7] });
-  SEATS.push({ seg: [16.6, 3.0, 2.5, 1.05], owner: null, kind: "L", side: [18.2, 4.05, 0.9, 1.7] });
-  const JARVIS_DESK = [7.6, 10.0, 3.2, 1.4];
-  const AISLE_X = 12.4;
+  const Ldesk = (x, y) => SEATS.push({ seg: [x, y, 2.5, 1.05], owner: null, kind: "L", side: [x + 1.6, y + 1.05, 0.9, 1.7] });
+  if (BIG) {
+    bench(1.8, 2.3, 5, ["librarian", "researcher", "creative"]);
+    bench(1.8, 5.8, 5, ["critic"]);
+    bench(1.8, 9.3, 5, []);
+    Ldesk(15.8, 3.1); Ldesk(18.6, 3.1); Ldesk(21.4, 3.1); Ldesk(15.8, 7.0); Ldesk(18.6, 7.0);
+  } else {
+    bench(2.0, 2.3, 4, ["librarian", "researcher", "creative", null]);
+    bench(2.0, 6.0, 4, ["critic", null, null, null]);
+    Ldesk(13.4, 3.0); Ldesk(16.6, 3.0);
+  }
+  const JARVIS_DESK = [7.6, 10.0 + DY, 3.2, 1.4];
+  const AISLE_X = BIG ? 14.8 : 12.4;
   const PANTRY_WALK_Y = 1.85;
-  const PANTRY_SPOTS = [[14.75, 1.3], [16.2, 1.3], [15.0, 2.55], [16.05, 2.6]];   // machine, counter, high table ×2
+  const PANTRY_SPOTS = [[14.75 + DX, 1.3], [16.2 + DX, 1.3], [15.0 + DX, 2.55], [16.05 + DX, 2.6]];   // machine, counter, high table ×2
   const PLACES = {
     pantry: { at: PANTRY_SPOTS[0] },
-    wc: { at: [19.0, 0.6], hidden: true },
+    wc: { at: [19.0 + DX, 0.6], hidden: true },
   };
 
   let host, canvas, ctx, overlay, onSelect, state = null, selected = "jarvis", dpr = 1, scale = 1;
@@ -128,20 +140,20 @@
     const d = new Date(), ha = ((d.getHours() % 12) + d.getMinutes() / 60) / 12 * Math.PI * 2, ma = (d.getMinutes() + d.getSeconds() / 60) / 60 * Math.PI * 2;
     ctx.strokeStyle = "#333"; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(ck.x, ck.y); ctx.lineTo(ck.x + Math.sin(ha) * 6, ck.y - Math.cos(ha) * 6); ctx.stroke();
     ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(ck.x, ck.y); ctx.lineTo(ck.x + Math.sin(ma) * 10, ck.y - Math.cos(ma) * 10); ctx.stroke();
-    poly(onWall(14.6, 1.8, 124, 138), "#2C3E66");
-    alongX(14.72, 0, 136, () => { ctx.fillStyle = "#E8A838"; ctx.font = "800 10px ui-monospace, Menlo, monospace"; ctx.fillText("PANTRY", 8, 11); });
-    poly(onWall(18.3, 1.5, 0, 114), "#FFFFFF");
+    poly(onWall(14.6 + DX, 1.8, 124, 138), "#2C3E66");
+    alongX(14.72 + DX, 0, 136, () => { ctx.fillStyle = "#E8A838"; ctx.font = "800 10px ui-monospace, Menlo, monospace"; ctx.fillText("PANTRY", 8, 11); });
+    poly(onWall(18.3 + DX, 1.5, 0, 114), "#FFFFFF");
     if (now < wcDoorUntil && wcDoorUntil !== Infinity) {                      // door open: a dark doorway and the door swung in
-      poly(onWall(18.4, 1.3, 0, 108), "#3B3029");
-      poly([up(p(18.4, 0), 0), up(p(18.4, 0.9), 0), up(p(18.4, 0.9), 108), up(p(18.4, 0), 108)], "#C08A5F", "rgba(0,0,0,.2)");
+      poly(onWall(18.4 + DX, 1.3, 0, 108), "#3B3029");
+      poly([up(p(18.4 + DX, 0), 0), up(p(18.4 + DX, 0.9), 0), up(p(18.4 + DX, 0.9), 108), up(p(18.4 + DX, 0), 108)], "#C08A5F", "rgba(0,0,0,.2)");
     } else {
-      poly(onWall(18.4, 1.3, 0, 108), "#C08A5F");
-      poly(onWall(18.55, 1.0, 60, 94), "#D39D72"); poly(onWall(18.55, 1.0, 14, 50), "#D39D72");
+      poly(onWall(18.4 + DX, 1.3, 0, 108), "#C08A5F");
+      poly(onWall(18.55 + DX, 1.0, 60, 94), "#D39D72"); poly(onWall(18.55 + DX, 1.0, 14, 50), "#D39D72");
     }
-    poly(onWall(18.7, 0.7, 96, 106), "#FFFFFF");
-    alongX(18.74, 0, 106, () => { ctx.fillStyle = "#334155"; ctx.font = "800 8px ui-monospace, Menlo, monospace"; ctx.fillText("WC", 6, 8); });
-    const kn = up(p(19.45, 0), 54); circle(kn.x, kn.y, 2.6, "#F2C94C");
-    const occ = up(p(19.45, 0), 118), busyWc = wcBusy();
+    poly(onWall(18.7 + DX, 0.7, 96, 106), "#FFFFFF");
+    alongX(18.74 + DX, 0, 106, () => { ctx.fillStyle = "#334155"; ctx.font = "800 8px ui-monospace, Menlo, monospace"; ctx.fillText("WC", 6, 8); });
+    const kn = up(p(19.45 + DX, 0), 54); circle(kn.x, kn.y, 2.6, "#F2C94C");
+    const occ = up(p(19.45 + DX, 0), 118), busyWc = wcBusy();
     rr(occ.x - 13, occ.y - 5, 26, 10, 5, "#1F2533"); circle(occ.x - 7, occ.y, 3, busyWc ? "#E5484D" : "#30A46C");
     ctx.fillStyle = "#FFFFFF"; ctx.font = "700 5px ui-monospace, Menlo, monospace"; ctx.fillText(busyWc ? "BUSY" : "FREE", occ.x - 2, occ.y + 2);
 
@@ -155,12 +167,12 @@
     soft(() => { poly([p(0, 0), p(W, 0), p(W, 0.4), p(0.4, 0.4)], "rgba(120,70,30,.2)"); poly([p(0, 0), p(0.4, 0.4), p(0.4, D), p(0, D)], "rgba(120,70,30,.2)"); }, 8);
     if (day.night < 0.2) soft(() => poly([p(0.1, 3.0), p(3.4, 3.6), p(3.4, 13.6), p(0.1, 13.0)], "rgba(255,250,225,.24)"), 6);
     // pantry floor: cream and white tiles
-    for (let gx = 13; gx < 18; gx++) for (let gy = 0; gy < 3; gy++) poly([p(gx, gy), p(gx + 1, gy), p(gx + 1, gy + 1), p(gx, gy + 1)], (gx + gy) % 2 ? "#FFF8EE" : "#F1E6D6", "rgba(150,120,90,.18)");
+    for (let gx = 13 + DX; gx < 18 + DX; gx++) for (let gy = 0; gy < 3; gy++) poly([p(gx, gy), p(gx + 1, gy), p(gx + 1, gy + 1), p(gx, gy + 1)], (gx + gy) % 2 ? "#FFF8EE" : "#F1E6D6", "rgba(150,120,90,.18)");
     // rugs: teal under Jarvis, a soft pink runner along the aisle
-    poly([p(6.4, 9.2), p(12.0, 9.2), p(12.0, 13.4), p(6.4, 13.4)], "#40BFB4");
-    poly([p(6.7, 9.5), p(11.7, 9.5), p(11.7, 13.1), p(6.7, 13.1)], null, "rgba(255,255,255,.9)", 2);
-    for (let i = 0; i < 7; i++) { const q = p(6.9 + i * 0.78, 13.28); circle(q.x, q.y, 2.5, "#FFD166"); }
-    poly([p(AISLE_X - 0.45, 3.0), p(AISLE_X + 0.45, 3.0), p(AISLE_X + 0.45, 8.6), p(AISLE_X - 0.45, 8.6)], "rgba(246,166,193,.55)");
+    poly([p(6.4, 9.2 + DY), p(12.0, 9.2 + DY), p(12.0, 13.4 + DY), p(6.4, 13.4 + DY)], "#40BFB4");
+    poly([p(6.7, 9.5 + DY), p(11.7, 9.5 + DY), p(11.7, 13.1 + DY), p(6.7, 13.1 + DY)], null, "rgba(255,255,255,.9)", 2);
+    for (let i = 0; i < 7; i++) { const q = p(6.9 + i * 0.78, 13.28 + DY); circle(q.x, q.y, 2.5, "#FFD166"); }
+    poly([p(AISLE_X - 0.45, 3.0), p(AISLE_X + 0.45, 3.0), p(AISLE_X + 0.45, 8.6 + DY), p(AISLE_X - 0.45, 8.6 + DY)], "rgba(246,166,193,.55)");
   }
 
   // Small v1-size board: a title, three columns with counts and coloured notes. Click for the tasks.
@@ -235,7 +247,7 @@
   function pantry() {
     // counter along the back wall with a sink, coffee machine, kettle, mugs and a fruit bowl; wall cabinets above;
     // a tall fridge; a round high table with two stools; a pendant lamp
-    const gx = 14.0, gy = 0.12, cw = 2.9, cd = 0.78;
+    const gx = 14.0 + DX, gy = 0.12, cw = 2.9, cd = 0.78;
     shadow(gx, gy, cw, cd, 0.1, 0.16);
     box(gx, gy, cw, cd, 36, "#FFFFFF");
     box(gx, gy, cw, cd, 4, "#D9B48A", 36);                                   // wood worktop
@@ -258,7 +270,7 @@
     const mag = up(p(fr + 0.85, gy + 0.55), 76); rr(mag.x - 4, mag.y - 4, 8, 6, 1, "#FFD166"); rr(mag.x - 3, mag.y + 5, 6, 5, 1, "#7CC8FF");
   }
   function pantryTable() {
-    const c = p(15.55, 2.55);
+    const c = p(15.55 + DX, 2.55);
     soft(() => ellipse(c.x, c.y + 3, 30, 11, "rgba(70,40,20,.2)"), 5);
     rr(c.x - 2, c.y - 34, 4, 34, 2, "#6B5A50"); ellipse(c.x, c.y, 10, 3.5, "#6B5A50");
     ellipse(c.x, c.y - 36, 24, 11, "#C9955F"); ellipse(c.x, c.y - 38, 24, 11, "#E0B07A");
@@ -538,7 +550,7 @@
     if (!layer || key !== layerKey) { layer = document.createElement("canvas"); layer.width = canvas.width; layer.height = canvas.height; layerKey = key; }
     const main = ctx; ctx = layer.getContext("2d"); STATIC = true;
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0); ctx.clearRect(0, 0, CW, CH);
-    room(day); bookshelf(0.04, 0.3); plant(0.35, 13.2, true);
+    room(day); bookshelf(0.04, 0.3); plant(0.35, 13.2 + DY, true);
     STATIC = false; ctx = main; layerAt = now;
   }
   function draw() {
@@ -549,20 +561,20 @@
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.drawImage(layer, 0, 0);
     ctx.setTransform(dpr * scale, 0, 0, dpr * scale, 0, 0);
     const items = [
-      { depth: 20.5, fn: () => plant(19.2, 0.4) },
-      { depth: 33.0, fn: () => plant(19.2, 13.0, true) },
-      { depth: 15.2, fn: () => pantry() },
-      { depth: 16.9, fn: () => stool(15.0, 2.1) },
-      { depth: 18.1, fn: () => pantryTable() },
-      { depth: 18.9, fn: () => stool(16.2, 2.95) },
-      { depth: 24.0, fn: () => cooler(19.2, 4.4) },
-      { depth: 25.6, fn: () => printer(19.0, 6.0) },
-      { depth: 22.9, fn: () => brain(10.95, 10.25, state?.desks?.find((d) => d.type === "librarian")?.latest?.state === "working") },
-      { depth: 23.4, fn: () => meetingChairs(14.3, 9.2, 3.4, 1.6, false) },
-      { depth: 24.5, fn: () => meetingTable(14.3, 9.2, 3.4, 1.6) },
-      { depth: 26.5, fn: () => meetingChairs(14.3, 9.2, 3.4, 1.6, true) },
-      { depth: 28.0, fn: () => tv(19.0, 9.6) },
-      { depth: 17.5, fn: () => plant(12.0, 5.2) },
+      { depth: 20.5 + DX, fn: () => plant(19.2 + DX, 0.4) },
+      { depth: 33.0 + DX + DY, fn: () => plant(19.2 + DX, 13.0 + DY, true) },
+      { depth: 15.2 + DX, fn: () => pantry() },
+      { depth: 16.9 + DX, fn: () => stool(15.0 + DX, 2.1) },
+      { depth: 18.1 + DX, fn: () => pantryTable() },
+      { depth: 18.9 + DX, fn: () => stool(16.2 + DX, 2.95) },
+      { depth: BIG ? 30.6 : 24.0, fn: () => BIG ? cooler(23.1, 7.5) : cooler(19.2, 4.4) },
+      { depth: BIG ? 32.6 : 25.6, fn: () => BIG ? printer(22.9, 9.4) : printer(19.0, 6.0) },
+      { depth: 22.9, fn: () => brain(10.95, 10.25 + DY, state?.desks?.find((d) => d.type === "librarian")?.latest?.state === "working") },
+      { depth: 23.4 + DX + DY, fn: () => meetingChairs(14.3 + DX, 9.2 + DY, 3.4, 1.6, false) },
+      { depth: 24.5 + DX + DY, fn: () => meetingTable(14.3 + DX, 9.2 + DY, 3.4, 1.6) },
+      { depth: 26.5 + DX + DY, fn: () => meetingChairs(14.3 + DX, 9.2 + DY, 3.4, 1.6, true) },
+      { depth: 28.0 + DX + DY, fn: () => tv(19.0 + DX, 9.6 + DY) },
+      { depth: 17.5 + (BIG ? 2.4 : 0), fn: () => plant(AISLE_X - 0.4, 5.2) },
     ];
     const dt = Math.min(100, lastFrame ? now - lastFrame : 16); lastFrame = now;
     const occ = occupants(), byIndex = Object.fromEntries(occ.map((o) => [o.i, o]));
@@ -587,7 +599,8 @@
     items.sort((a, b) => a.depth - b.depth).forEach((it) => it.fn());
     if (day.night) {
       ctx.fillStyle = `rgba(20,24,60,${day.night})`; ctx.fillRect(0, 0, CW, CH);
-      for (const [gx, gy] of [[4, 3.6], [9, 3.6], [15, 4.5], [4, 7.4], [9, 7.4], [9.2, 11.6], [15.8, 10.2], [15.5, 1.8]]) {
+      for (const [gx, gy] of (BIG ? [[4, 3.6], [9.5, 3.6], [4, 7.1], [9.5, 7.1], [4, 10.6], [9.5, 10.6], [18, 5], [9.2, 14.6], [19.8, 13.2], [19.5, 1.8]]
+                                  : [[4, 3.6], [9, 3.6], [15, 4.5], [4, 7.4], [9, 7.4], [9.2, 11.6], [15.8, 10.2], [15.5, 1.8]])) {
         const q = p(gx, gy), g = ctx.createRadialGradient(q.x, q.y - 40, 5, q.x, q.y, 150);
         g.addColorStop(0, `rgba(255,214,150,${day.warm + 0.06})`); g.addColorStop(1, "rgba(255,214,150,0)"); ctx.fillStyle = g; ctx.fillRect(q.x - 160, q.y - 190, 320, 300);
       }
@@ -607,7 +620,7 @@
     };
     for (const o of occupants()) add(o.id, o.label[0].toUpperCase() + o.label.slice(1), seatG(o.i), modeOf(o.id, o.s), o.s?.doing);
     add("jarvis", "Jarvis · main session", JARVIS_SEAT, modeOf("jarvis", state.main), state.main?.doing);
-    const b = p(11.45, 10.75);
+    const b = p(11.45, 10.75 + DY);
     out.push(`<button class="po-hit ${selected === "brain" ? "sel" : ""}" data-id="brain" aria-label="The Brain" style="left:${(b.x - 30) * scale}px;top:${(b.y - 90) * scale}px;width:${60 * scale}px;height:${94 * scale}px"><span class="po-name">The Brain · your vault</span></button>`);
     const k0 = up(p(4.1, 0), 128), k1 = up(p(7.4, 0), 62);
     out.push(`<button class="po-hit po-board ${selected === "board" ? "sel" : ""}" data-id="board" aria-label="Task board" style="left:${k0.x * scale}px;top:${k0.y * scale}px;width:${(k1.x - k0.x) * scale}px;height:${(k1.y - k0.y) * scale}px"><span class="po-name">Task board · click to open</span></button>`);
