@@ -17,6 +17,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { ops } from "./ops.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, all) =>
@@ -124,6 +125,33 @@ function latestSession() {
   return best;
 }
 
+// Ops numbers: every session in this folder from the last two weeks, recomputed at most every 5 s.
+let opsCache = { at: 0, data: null };
+function opsSnapshot() {
+  if (Date.now() - opsCache.at < 5000) return opsCache.data;
+  const cutoff = Date.now() - 14 * 864e5, sessions = [], agents = [];
+  let files = [];
+  try { files = fs.readdirSync(PROJECT_DIR).filter((f) => f.endsWith(".jsonl")); } catch { /* none */ }
+  for (const f of files) {
+    const p = path.join(PROJECT_DIR, f);
+    let m = 0; try { m = fs.statSync(p).mtimeMs; } catch { continue; }
+    if (m < cutoff) continue;
+    const rec = readJsonl(p);
+    sessions.push({ entries: rec.entries, mtime: rec.mtime });
+    const sub = path.join(PROJECT_DIR, f.slice(0, -6), "subagents");
+    let subs = [];
+    try { subs = fs.readdirSync(sub).filter((x) => x.endsWith(".jsonl")); } catch { /* none */ }
+    for (const x of subs) {
+      let meta = {};
+      try { meta = JSON.parse(fs.readFileSync(path.join(sub, x.replace(/\.jsonl$/, ".meta.json")), "utf8")); } catch { /* none */ }
+      agents.push({ type: meta.agentType || "agent", description: meta.description || "", entries: readJsonl(path.join(sub, x)).entries });
+    }
+  }
+  try { opsCache = { at: Date.now(), data: ops({ sessions, agents, vault: VAULT, root: ROOT }) }; }
+  catch (e) { opsCache = { at: Date.now(), data: { error: String(e.message || e) } }; }
+  return opsCache.data;
+}
+
 function snapshot() {
   const s = latestSession();
   const main = { id: "jarvis", name: "Jarvis", kind: "main", state: "offline", doing: "", messages: [] };
@@ -160,7 +188,7 @@ function snapshot() {
   for (const item of [...pending.values()]) {
     if (sc.text && !sc.asking && Date.now() - item.created > 4000) item.resolve(null);
   }
-  return { root: ROOT, session: s?.id || null, tmux: tmuxAlive(), screen: sc, main, desks, visitors, now,
+  return { root: ROOT, session: s?.id || null, tmux: tmuxAlive(), screen: sc, main, desks, visitors, now, ops: opsSnapshot(),
            permissions: [...pending.values()].map(({ id, tool, detail, agent, created }) => ({ id, tool, detail, agent, created })) };
 }
 
@@ -236,9 +264,10 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       return res.end(html);
     }
-    if (req.method === "GET" && url.pathname === "/pixel-office.js") {
+    if (url.pathname === "/favicon.ico") { res.writeHead(204); return res.end(); }
+    if (req.method === "GET" && ["/pixel-office.js", "/ops-view.js"].includes(url.pathname)) {
       res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
-      return res.end(fs.readFileSync(path.join(HERE, "pixel-office.js")));
+      return res.end(fs.readFileSync(path.join(HERE, url.pathname.slice(1))));
     }
     if (req.method === "GET" && url.pathname === "/stream") {
       if (url.searchParams.get("t") !== UI_TOKEN) return send(res, 403, { error: "forbidden" });
