@@ -543,15 +543,29 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     # Always run the current dashboard code: restart a server left over from before an update.
     # (It holds no state that matters; your Claude session is separate and keeps running.)
     if _office_up(port):
+        import time
+        pids = set()
         try:
-            os.kill(int(pidfile.read_text()), 15)
-            import time
-            for _ in range(20):
-                if not _office_up(port):
-                    break
-                time.sleep(0.1)
+            pids.add(int(pidfile.read_text()))
         except (OSError, ValueError):
             pass
+        # Also whatever office server is actually listening on the port (an older one may have lost its pidfile)
+        listen = subprocess.run(["lsof", "-ti", f"tcp:{port}", "-sTCP:LISTEN"], capture_output=True, text=True).stdout.split()
+        for pid in listen:
+            cmd = subprocess.run(["ps", "-o", "command=", "-p", pid], capture_output=True, text=True).stdout
+            if "office/server.mjs" in cmd:
+                pids.add(int(pid))
+        for pid in pids:
+            try:
+                os.kill(pid, 15)
+            except OSError:
+                pass
+        for _ in range(30):
+            if not _office_up(port):
+                break
+            time.sleep(0.1)
+        if _office_up(port):
+            raise SystemExit(f"! Something else is using port {port}. Try: jarvis office --port 3778")
     if not _office_up(port):
         log = open(OFFICE_DIR / "server.log", "a")
         proc = subprocess.Popen([node, str(REPO / "office" / "server.mjs"), "--root", str(root), "--port", str(port)],
@@ -620,6 +634,13 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
             raise SystemExit(f"! Claude's session closed straight away (exit {dead[1] if len(dead) > 1 else '?'}). It showed:\n{screen[-1500:]}\n"
                              f"  Full log: {OFFICE_DIR / 'session.log'}")
         print("✓ Started Claude in this folder (tmux session 'jarvis')" + (f" with {' '.join(claude_args)}." if claude_args else "."))
+    if os.environ.get("TMUX"):
+        current = subprocess.run([tm, "display-message", "-p", "#S"], capture_output=True, text=True).stdout.strip()
+        if current == "jarvis":
+            print("You're already in the Jarvis session (this terminal). The dashboard is up to date.")
+        elif attach:
+            subprocess.run([tm, "switch-client", "-t", "jarvis"])
+        return
     if attach and sys.stdin.isatty():
         print("Opening the session here. Detach with Ctrl-b then d (Claude keeps running).")
         os.execv(tm, [tm, "attach", "-t", "jarvis"])
