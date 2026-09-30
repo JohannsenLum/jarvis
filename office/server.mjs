@@ -335,21 +335,32 @@ function openInObsidian(rel) {
   if (!VAULT) return { ok: false, message: "This folder has no vault." };
   if (!fs.existsSync("/Applications/Obsidian.app")) return { ok: false, message: "Obsidian isn't installed. Get it free at obsidian.md, or use the graph view here." };
   const cfgPath = path.join(os.homedir(), "Library", "Application Support", "obsidian", "obsidian.json");
-  let cfg = { vaults: {} }, added = false;
+  const markPath = path.join(STATE_DIR, "obsidian-added");
+  const HOW = "Or add it once inside Obsidian: Open another vault → Open folder as vault → choose Jarvis/knowledge.";
+  let cfg = { vaults: {} };
   try { cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { /* first run */ }
   cfg.vaults ||= {};
-  if (!Object.values(cfg.vaults).some((v) => path.resolve(v.path) === path.resolve(VAULT))) {
+  const known = Object.values(cfg.vaults).some((v) => path.resolve(v.path) === path.resolve(VAULT));
+  // Is Obsidian running, and since when? (It only reads its vault list when it starts.)
+  let startedAt = null;
+  try {
+    const pid = execFileSync("pgrep", ["-x", "Obsidian"], { encoding: "utf8" }).trim().split("\n")[0];
+    startedAt = Date.parse(execFileSync("ps", ["-o", "lstart=", "-p", pid], { encoding: "utf8" }).trim());
+  } catch { /* not running */ }
+  let addedAt = 0; try { addedAt = Number(fs.readFileSync(markPath, "utf8")); } catch { /* never */ }
+  if (!known) {
+    if (startedAt) return { ok: false, message: `Obsidian is open and doesn't know your vault yet. Quit Obsidian (Cmd+Q) and press this again. ${HOW}` };
     try { if (fs.existsSync(cfgPath) && !fs.existsSync(cfgPath + ".jarvis-backup")) fs.copyFileSync(cfgPath, cfgPath + ".jarvis-backup"); } catch { /* ignore */ }
     cfg.vaults[crypto.randomBytes(8).toString("hex")] = { path: VAULT, ts: Date.now() };
     fs.mkdirSync(path.dirname(cfgPath), { recursive: true });
     fs.writeFileSync(cfgPath, JSON.stringify(cfg));
-    added = true;
+    fs.writeFileSync(markPath, String(Date.now()));
+  } else if (startedAt && addedAt && startedAt < addedAt) {
+    return { ok: false, message: `Obsidian was already open when your vault was added, so it can't see it yet. Quit Obsidian (Cmd+Q) and press this again. ${HOW}` };
   }
-  const running = (() => { try { execFileSync("pgrep", ["-x", "Obsidian"], { stdio: "ignore" }); return true; } catch { return false; } })();
-  if (added && running) return { ok: false, message: "Added your vault to Obsidian. Quit Obsidian (Cmd+Q) and press the button again: it only reads its vault list when it starts." };
   const target = rel ? path.join(VAULT, rel) : VAULT;
   try { execFileSync("open", [`obsidian://open?path=${encodeURIComponent(target)}`]); } catch (e) { return { ok: false, message: String(e.message || e) }; }
-  return { ok: true, message: added ? "Opening your vault in Obsidian (added it to Obsidian's vault list)." : "Opening in Obsidian." };
+  return { ok: true, message: known ? "Opening in Obsidian." : "Opening your vault in Obsidian (added it to Obsidian's vault list)." };
 }
 
 // ---------- restart when updated ----------
