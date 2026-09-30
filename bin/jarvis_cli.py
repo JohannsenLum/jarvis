@@ -6,7 +6,8 @@
     jarvis doctor                          what's installed where, and what's detected on this Mac
     jarvis schedule ...                    run scheduled jobs from another runtime (see `jarvis schedule -h`)
     jarvis setup hermes [--voice]          optional: Hermes as the always-on home (Telegram, cron, voice)
-    jarvis office [stop|status]            dashboard: watch Jarvis and its sub-agents, type and approve from the browser
+    jarvis office [stop|status|restart]    dashboard: watch Jarvis and its sub-agents, type and approve from the browser
+                                           (flags for Claude after --, e.g. jarvis office -- --model opus)
     jarvis mcp                             run the Jarvis MCP server on stdio (what harnesses launch)
 
 Harnesses: claude-code, codex, deepseek, hermes, openclaw, cursor, gemini, claude-desktop.
@@ -504,7 +505,7 @@ def office_hook(add: bool, settings: Path, node: str) -> None:
     json_merge(settings, update)
 
 
-def office(action: str, port: int, approvals: bool, attach: bool) -> None:
+def office(action: str, port: int, approvals: bool, attach: bool, claude_args: list[str]) -> None:
     root = config.instance_root() or Path.cwd()
     pidfile = OFFICE_DIR / "server.pid"
     if action == "stop":
@@ -543,11 +544,17 @@ def office(action: str, port: int, approvals: bool, attach: bool) -> None:
         print("! tmux isn't installed (brew install tmux), so the dashboard can watch but not type.\n"
               "  Start Claude as usual: cd", root, "&& claude")
         return
-    if subprocess.run([tm, "has-session", "-t", "jarvis"], capture_output=True).returncode != 0:
+    if action == "restart":
+        subprocess.run([tm, "kill-session", "-t", "jarvis"], capture_output=True)
+    if subprocess.run([tm, "has-session", "-t", "jarvis"], capture_output=True).returncode == 0:
+        if claude_args:
+            print("! Claude is already running in the office session, so these flags weren't applied:",
+                  " ".join(claude_args), "\n  Restart it with them: jarvis office restart --", " ".join(claude_args))
+    else:
         # Start clean: don't inherit markers from a Claude session this command might be run from
         unset = [x for k in os.environ if k == "CLAUDECODE" or k.startswith("CLAUDE_CODE_") for x in ("-u", k)]
-        subprocess.run([tm, "new-session", "-d", "-s", "jarvis", "-c", str(root), "env", *unset, "claude"], check=True)
-        print("✓ Started Claude in this folder (tmux session 'jarvis').")
+        subprocess.run([tm, "new-session", "-d", "-s", "jarvis", "-c", str(root), "env", *unset, "claude", *claude_args], check=True)
+        print("✓ Started Claude in this folder (tmux session 'jarvis')" + (f" with {' '.join(claude_args)}." if claude_args else "."))
     if attach and sys.stdin.isatty():
         print("Opening the session here. Detach with Ctrl-b then d (Claude keeps running).")
         os.execv(tm, [tm, "attach", "-t", "jarvis"])
@@ -574,14 +581,21 @@ def main() -> None:
     p.add_argument("runtime", choices=["hermes"])
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p = sub.add_parser("office", help="dashboard: watch Jarvis and its sub-agents, type and approve from the browser")
-    p.add_argument("action", nargs="?", default="start", choices=["start", "stop", "status"])
+    p.add_argument("action", nargs="?", default="start", choices=["start", "stop", "status", "restart"])
+    p.add_argument("--dangerously-skip-permissions", dest="skip", action="store_true",
+                   help="start Claude with --dangerously-skip-permissions (no prompts at all)")
     p.add_argument("--port", type=int, default=3777)
     p.add_argument("--no-approvals", dest="approvals", action="store_false", help="don't answer permission prompts from the dashboard")
     p.add_argument("--no-attach", dest="attach", action="store_false", help="don't open the session in this terminal")
     sub.add_parser("mcp", help="run the MCP server on stdio")
     p = sub.add_parser("schedule", help="scheduled jobs from another runtime")
     p.add_argument("args", nargs=argparse.REMAINDER)
-    a = ap.parse_args()
+    argv = sys.argv[1:]
+    passthrough: list[str] = []
+    if "--" in argv:                                        # jarvis office -- --model opus …
+        i = argv.index("--")
+        argv, passthrough = argv[:i], argv[i + 1:]
+    a = ap.parse_args(argv)
 
     if a.cmd == "install":
         names = [h for h in HARNESSES if DETECT[h]()] if a.harness == ["all"] else a.harness
@@ -608,7 +622,8 @@ def main() -> None:
     elif a.cmd == "setup":
         os.execv("/bin/zsh", ["/bin/zsh", str(REPO / "adapters" / a.runtime / "setup.sh"), *a.rest])
     elif a.cmd == "office":
-        office(a.action, a.port, a.approvals, a.attach)
+        extra = (["--dangerously-skip-permissions"] if a.skip else []) + passthrough
+        office(a.action, a.port, a.approvals and not a.skip, a.attach, extra)
     elif a.cmd == "mcp":
         os.execv(MCP_CMD[0], MCP_CMD)
     elif a.cmd == "schedule":

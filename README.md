@@ -85,6 +85,11 @@ when they work, and a **control room** of cards with live status and `now.md`.
 - **Approve from either side.** Permission prompts appear as Allow / Deny cards; answer there or in the
   terminal, and the other one clears. Pickers and prompts (onboarding questions, folder trust) show in a
   live terminal mirror with arrow, Space and Enter buttons.
+- Flags for Claude: `jarvis office --dangerously-skip-permissions` (no prompts at all, so no approval
+  cards), or anything after `--`, e.g. `jarvis office -- --model opus`. If Claude is already running in
+  the office, use `jarvis office restart -- <flags>`.
+- Without tmux the dashboard still shows everything live and approvals still work; typing and the
+  terminal mirror need tmux, and you start `claude` yourself.
 - Local only: bound to 127.0.0.1, with a per-run token. `jarvis office stop` closes the dashboard;
   Claude keeps running (`tmux attach -t jarvis` to get back to it). Needs tmux (`brew install tmux`).
 
