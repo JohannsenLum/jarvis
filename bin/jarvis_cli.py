@@ -19,6 +19,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -514,12 +515,18 @@ def office_hook(add: bool, settings: Path, node: str) -> None:
 def office(action: str, port: int, approvals: bool, attach: bool, claude_args: list[str]) -> None:
     root = config.instance_root() or Path.cwd()
     pidfile = OFFICE_DIR / "server.pid"
-    if action == "stop":
+    if action in ("stop", "stop-all"):
         try:
             os.kill(int(pidfile.read_text()), 15)
-            print("✓ Office dashboard stopped. Your Claude session keeps running (tmux session 'jarvis').")
+            print("✓ Office dashboard stopped.")
         except (OSError, ValueError):
             print("The office dashboard isn't running.")
+        tm = _tmux()
+        if action == "stop-all" and tm:
+            if subprocess.run([tm, "kill-session", "-t", "jarvis"], capture_output=True).returncode == 0:
+                print("✓ Claude session 'jarvis' closed. Pick the conversation up later with: claude --continue")
+        elif tm:
+            print("Your Claude session keeps running. To close it too: jarvis office stop-all")
         return
     if action == "status":
         print(f"Dashboard: {'running at http://127.0.0.1:%d' % port if _office_up(port) else 'not running (log: ' + str(OFFICE_DIR / 'server.log') + ')'}")
@@ -576,7 +583,13 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     else:
         # Start clean: don't inherit markers from a Claude session this command might be run from
         unset = [x for k in os.environ if k == "CLAUDECODE" or k.startswith("CLAUDE_CODE_") for x in ("-u", k)]
-        subprocess.run([tm, "new-session", "-d", "-s", "jarvis", "-c", str(root), "env", *unset, "claude", *claude_args], check=True)
+        # Run Claude in a login shell and keep the shell afterwards, so if Claude exits you see why and
+        # can start it again (`claude --continue`) instead of the whole session disappearing.
+        claude_cmd = " ".join(shlex.quote(x) for x in ["env", *unset, "claude", *claude_args])
+        shell = os.environ.get("SHELL", "/bin/zsh")
+        script = (f'{claude_cmd}; echo; echo "Claude exited. Start it again with: claude --continue '
+                  f'(or close this with: exit)"; exec {shlex.quote(shell)} -l')
+        subprocess.run([tm, "new-session", "-d", "-s", "jarvis", "-c", str(root), shell, "-lc", script], check=True)
         print("✓ Started Claude in this folder (tmux session 'jarvis')" + (f" with {' '.join(claude_args)}." if claude_args else "."))
     if attach and sys.stdin.isatty():
         print("Opening the session here. Detach with Ctrl-b then d (Claude keeps running).")
@@ -604,7 +617,7 @@ def main() -> None:
     p.add_argument("runtime", choices=["hermes"])
     p.add_argument("rest", nargs=argparse.REMAINDER)
     p = sub.add_parser("office", help="dashboard: watch Jarvis and its sub-agents, type and approve from the browser")
-    p.add_argument("action", nargs="?", default="start", choices=["start", "stop", "status", "restart"])
+    p.add_argument("action", nargs="?", default="start", choices=["start", "stop", "stop-all", "status", "restart"])
     p.add_argument("--dangerously-skip-permissions", dest="skip", action="store_true",
                    help="start Claude with --dangerously-skip-permissions (no prompts at all)")
     p.add_argument("--port", type=int, default=3777)

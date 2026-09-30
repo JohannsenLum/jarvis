@@ -71,6 +71,20 @@ main{flex:1;display:grid;grid-template-columns:1fr minmax(320px,420px);min-heigh
 .visitors .label{font:600 12px var(--mono);color:var(--ink-2);letter-spacing:.08em}
 .chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:12.5px;cursor:pointer;color:inherit}
 .chip.working{border-color:var(--work);color:var(--work)}
+.po-wrap{position:relative;margin:0 auto;width:max-content;max-width:100%}
+.po-wrap canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges;border-radius:14px;background:radial-gradient(ellipse at 50% 40%,#2A3340,#10161C 70%)}
+.po-overlay{position:absolute;inset:0;pointer-events:none}
+.po-hit{position:absolute;pointer-events:auto;background:none;border:0;cursor:pointer;padding:0;border-radius:6px}
+.po-hit:hover,.po-hit:focus-visible{outline:2px dashed rgba(255,255,255,.55);outline-offset:2px}
+.po-bubble{position:absolute;transform:translate(-50%,-100%);font:600 11px/1.2 var(--mono);background:#FFFDF6;color:#1B1B1F;border:2px solid #1B1B1F;border-radius:8px;padding:3px 7px;max-width:190px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-shadow:0 2px 0 #1B1B1F;pointer-events:none}
+.po-bubble.m-working{background:#E6FBEF}
+.po-bubble.m-asking{background:#FFD9C7;animation:po-pulse 1s steps(2) infinite}
+.po-bubble.m-waiting{background:#FFF4D8}
+@keyframes po-pulse{50%{margin-top:-3px}}
+.po-name{position:absolute;transform:translateX(-50%);font:700 11px/1 var(--mono);color:#fff;background:rgba(20,24,32,.8);padding:3px 6px;border-radius:4px;letter-spacing:.04em;white-space:nowrap;pointer-events:none}
+.po-name.sel{background:var(--accent);color:#1B1B1F}
+.po-name.m-absent{opacity:.5}
+.legend{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:10px;font-size:12.5px;color:var(--ink-2)}
 /* control room */
 .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:8px;cursor:pointer;text-align:left;color:inherit;font:inherit}
@@ -92,6 +106,7 @@ main{flex:1;display:grid;grid-template-columns:1fr minmax(320px,420px);min-heigh
 .msg.assistant{align-self:flex-start;background:var(--bg)}
 .msg.tool{align-self:flex-start;font:12px/1.4 var(--mono);color:var(--ink-2);padding:2px 4px}
 .msg code{font-family:var(--mono);font-size:.9em}
+.msg pre.block{margin:6px 0;padding:8px;background:color-mix(in srgb,var(--ink) 8%,transparent);border-radius:8px;font:12.5px/1.4 var(--mono);white-space:pre-wrap}
 .compose{border-top:1px solid var(--line);padding:12px;display:grid;gap:8px}
 .compose textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;background:var(--bg);color:var(--ink)}
 .compose .row{display:flex;gap:8px;align-items:center}
@@ -148,6 +163,7 @@ main{flex:1;display:grid;grid-template-columns:1fr minmax(320px,420px);min-heigh
   </aside>
 </main>
 <div class="toast" id="toast"></div>
+<script src="/pixel-office.js"></script>
 <script>
 const TOKEN = "__UI_TOKEN__";
 const DESK = {
@@ -161,7 +177,13 @@ try { view = localStorage.getItem("office-view") || "office"; } catch {}
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-const md = (s) => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>");
+const md = (s) => esc(s).split(/```[a-z]*\n?/).map((part, i) => i % 2
+  ? `<pre class="block">${part.replace(/\n$/, "")}</pre>`
+  : part.replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<b>$1</b>")).join("");
+// What a state means for who: the main session waits for you, sub-agents are done.
+const stateLabel = (id, st) => label(id, st, state?.screen?.asking);
+const label = (id, st, asking) => st === "working" ? "working" : id === "jarvis"
+  ? (asking ? "needs you" : st === "offline" ? "offline" : "waiting for you") : (st ? "done" : "not called yet");
 function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 2200); }
 
 async function post(url, data) {
@@ -174,6 +196,8 @@ async function post(url, data) {
 function target(id) {
   if (!state) return null;
   if (id === "jarvis") return { ...state.main, id, title: "Jarvis", sub: state.main.title || "main session" };
+  if (id === "brain") return { id, title: "The Brain", sub: "your vault · now.md is Jarvis's short-term memory", state: "", brain: true,
+    messages: state.now ? [{ role: "assistant", text: state.now }] : [] };
   const d = state.desks.find((x) => x.type === id);
   if (d) return d.latest ? { ...d.latest, id, title: DESK[id].label, sub: d.latest.description || DESK[id].job }
                          : { id, title: DESK[id].label, sub: DESK[id].job, state: "idle", messages: [] };
@@ -181,26 +205,20 @@ function target(id) {
   return v ? { ...v, id, title: v.type, sub: v.description } : null;
 }
 
-function station(id, icon, label, s, boss) {
-  const doing = s?.state === "working" ? (s.doing || "working…") : (s ? "idle" : "not called yet");
-  return `<button class="station ${boss ? "boss" : ""} ${s?.state === "working" ? "working" : ""} ${selected === id ? "sel" : ""}" data-id="${id}">
-    <div class="bubble">${esc(doing)}</div><div class="char">${icon}</div><div class="deskbox"></div><div class="name">${esc(label)}</div></button>`;
-}
-
+let mounted = false;
 function renderOffice() {
-  const m = state.main;
-  const desk = (t) => station(t, DESK[t].icon, DESK[t].label, state.desks.find((d) => d.type === t).latest);
-  const vis = state.visitors.map((v) => `<button class="chip ${v.state === "working" ? "working" : ""}" data-id="${v.id}">${esc(v.type)} · ${esc(v.description || "")}</button>`).join("");
-  return `<div class="room"><div class="window"></div>
-    ${desk("librarian")}${station("jarvis", "🤵", "JARVIS", m, true)}${desk("researcher")}
-    ${desk("critic")}<div></div>${desk("creative")}
-    <div class="visitors"><span class="label">VISITORS</span>${vis || '<span class="sub">other agents appear here</span>'}</div></div>`;
+  if (!mounted || !$("view").querySelector(".po-wrap")) {
+    PixelOffice.mount($("view"), (id) => { selected = id; render(); });
+    $("view").insertAdjacentHTML("beforeend", '<div class="legend"><span>💬 waiting for you</span><span>⌨️ working</span><span>❗ needs you</span><span>✓ done</span><span>Click anyone to open their conversation</span></div>');
+    mounted = true;
+  }
+  PixelOffice.update(state, selected);
 }
 
 function card(id, icon, label, s, job) {
   const last = s?.messages?.filter((x) => x.role !== "tool").slice(-1)[0];
   return `<button class="card ${selected === id ? "sel" : ""}" data-id="${id}">
-    <h3>${icon} ${esc(label)} <span class="state ${s?.state === "working" ? "working" : ""}">${esc(s?.state || "idle")}</span></h3>
+    <h3>${icon} ${esc(label)} <span class="state ${s?.state === "working" ? "working" : ""}">${esc(stateLabel(id, s?.state))}</span></h3>
     <div class="sub">${esc(s?.state === "working" ? s.doing : job)}</div>
     <div class="last">${last ? esc(last.text) : "Nothing yet."}</div></button>`;
 }
@@ -222,13 +240,13 @@ function renderPanel() {
   const t = target(selected) || target("jarvis");
   const log = $("log");
   const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
-  $("p-title").innerHTML = `${esc(t.title)} <span class="state ${t.state === "working" ? "working" : ""}">${esc(t.state)}</span>`;
+  $("p-title").innerHTML = `${esc(t.title)}` + (t.brain ? "" : ` <span class="state ${t.state === "working" ? "working" : ""}">${esc(stateLabel(t.id, t.state))}</span>`);
   $("p-sub").textContent = t.sub || "";
   log.innerHTML = t.messages?.length ? t.messages.map((m) => m.role === "tool"
       ? `<div class="msg tool">⚙ ${esc(m.name)} ${esc(m.detail)}</div>`
       : `<div class="msg ${m.role}">${md(m.text)}</div>`).join("") : `<div class="empty">No conversation yet.</div>`;
   if (stick) log.scrollTop = log.scrollHeight;
-  const isMain = selected === "jarvis";
+  const isMain = selected === "jarvis" || selected === "brain";
   $("text").placeholder = isMain ? "Message Jarvis…  (Enter to send, Shift+Enter for a new line)" : `Message for the ${t.title}… (goes through Jarvis)`;
   $("hint").textContent = !state.tmux ? "Typing needs the office session: run `jarvis office` in a terminal." :
     isMain ? "Typed into your terminal session, so both stay in sync." : "Sub-agents take a job and report back; Jarvis passes this on.";
@@ -250,7 +268,7 @@ function renderTerm() {
 function render() {
   $("live").classList.toggle("on", !!state.session);
   $("sub").textContent = state.session ? `${state.root.replace(/^\/Users\/[^/]+/, "~")}${state.tmux ? " · terminal linked" : " · view only"}` : "no Claude session in this folder yet";
-  $("view").innerHTML = view === "office" ? renderOffice() : renderControl();
+  if (view === "office") renderOffice(); else { mounted = false; $("view").innerHTML = renderControl(); }
   $("v-office").setAttribute("aria-pressed", view === "office");
   $("v-control").setAttribute("aria-pressed", view === "control");
   renderPerms();

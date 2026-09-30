@@ -75,8 +75,9 @@ jarvis office          # in your Jarvis folder: opens the dashboard and your Cla
 ```
 
 A local dashboard (http://127.0.0.1:3777) for the Claude session in your Jarvis folder. You can switch
-between two views: a pixel **office**, where Jarvis and the four sub-agents sit at desks and come alive
-when they work, and a **control room** of cards with live status and `now.md`.
+between two views: an isometric pixel-art **office** (drawn in code, with day and night through the
+windows and your vault as a glowing Brain in the middle), where Jarvis and the four sub-agents sit at
+desks and come alive when they work, and a **control room** of cards with live status and `now.md`.
 
 - **Click anyone** to read their live conversation: Jarvis's chat, or exactly what the researcher is
   searching for right now.

@@ -108,7 +108,8 @@ function activity(rec, msgs) {
   if (age < 20000 && !finished) {
     return { state: "working", doing: last?.role === "tool" ? `${last.name} ${last.detail}` : "thinking…" };
   }
-  return { state: finished || age > 20000 ? "idle" : "working", doing: "" };
+  // Finished its turn: the main session is waiting for you; a sub-agent is done.
+  return { state: finished || age > 20000 ? "waiting" : "working", doing: "" };
 }
 
 function latestSession() {
@@ -234,6 +235,10 @@ const server = http.createServer(async (req, res) => {
       const html = fs.readFileSync(path.join(HERE, "ui.html"), "utf8").replace("__UI_TOKEN__", UI_TOKEN);
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
       return res.end(html);
+    }
+    if (req.method === "GET" && url.pathname === "/pixel-office.js") {
+      res.writeHead(200, { "content-type": "text/javascript; charset=utf-8", "cache-control": "no-store" });
+      return res.end(fs.readFileSync(path.join(HERE, "pixel-office.js")));
     }
     if (req.method === "GET" && url.pathname === "/stream") {
       if (url.searchParams.get("t") !== UI_TOKEN) return send(res, 403, { error: "forbidden" });
