@@ -512,7 +512,7 @@ def office_hook(add: bool, settings: Path, node: str) -> None:
     json_merge(settings, update)
 
 
-def office(action: str, port: int, approvals: bool, attach: bool, claude_args: list[str]) -> None:
+def office(action: str, port: int, approvals: bool, attach: bool, claude_args: list[str], new: bool = False) -> None:
     root = config.instance_root() or Path.cwd()
     pidfile = OFFICE_DIR / "server.pid"
     if action in ("stop", "stop-all"):
@@ -540,6 +540,18 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     OFFICE_DIR.mkdir(parents=True, exist_ok=True)
     if approvals:
         office_hook(True, root / ".claude" / "settings.json", node)
+    # Always run the current dashboard code: restart a server left over from before an update.
+    # (It holds no state that matters; your Claude session is separate and keeps running.)
+    if _office_up(port):
+        try:
+            os.kill(int(pidfile.read_text()), 15)
+            import time
+            for _ in range(20):
+                if not _office_up(port):
+                    break
+                time.sleep(0.1)
+        except (OSError, ValueError):
+            pass
     if not _office_up(port):
         log = open(OFFICE_DIR / "server.log", "a")
         proc = subprocess.Popen([node, str(REPO / "office" / "server.mjs"), "--root", str(root), "--port", str(port)],
@@ -585,6 +597,11 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
         unset = [x for k in os.environ if k == "CLAUDECODE" or k.startswith("CLAUDE_CODE_") for x in ("-u", k)]
         # Run Claude in a login shell and keep the shell afterwards, so if Claude exits you see why and
         # can start it again (`claude --continue`) instead of the whole session disappearing.
+        # Pick up the last conversation in this folder, unless asked for a new one (or flags choose a session)
+        project = HOME / ".claude" / "projects" / re.sub(r"[^a-zA-Z0-9]", "-", str(root))
+        chooses = {"--continue", "-c", "--resume", "-r", "--session-id"} & set(claude_args)
+        if not new and not chooses and any(project.glob("*.jsonl")):
+            claude_args = ["--continue", *claude_args]
         claude_cmd = " ".join(shlex.quote(x) for x in ["env", *unset, "claude", *claude_args])
         shell = os.environ.get("SHELL", "/bin/zsh")
         script = (f'{claude_cmd}; echo; echo "Claude exited. Start it again with: claude --continue '
@@ -623,6 +640,7 @@ def main() -> None:
     p.add_argument("--port", type=int, default=3777)
     p.add_argument("--no-approvals", dest="approvals", action="store_false", help="don't answer permission prompts from the dashboard")
     p.add_argument("--no-attach", dest="attach", action="store_false", help="don't open the session in this terminal")
+    p.add_argument("--new", action="store_true", help="start a new conversation instead of continuing the last one")
     sub.add_parser("mcp", help="run the MCP server on stdio")
     p = sub.add_parser("schedule", help="scheduled jobs from another runtime")
     p.add_argument("args", nargs=argparse.REMAINDER)
@@ -659,7 +677,7 @@ def main() -> None:
         os.execv("/bin/zsh", ["/bin/zsh", str(REPO / "adapters" / a.runtime / "setup.sh"), *a.rest])
     elif a.cmd == "office":
         extra = (["--dangerously-skip-permissions"] if a.skip else []) + passthrough
-        office(a.action, a.port, a.approvals and not a.skip, a.attach, extra)
+        office(a.action, a.port, a.approvals and not a.skip, a.attach, extra, a.new)
     elif a.cmd == "mcp":
         os.execv(MCP_CMD[0], MCP_CMD)
     elif a.cmd == "schedule":
