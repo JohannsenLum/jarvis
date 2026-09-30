@@ -488,7 +488,7 @@ function renderPanel() {
       : `<div class="msg ${m.role}">${md(m.text)}</div>`).join("") : `<div class="empty">No conversation yet.</div>`;
   if (stick) log.scrollTop = log.scrollHeight;
   renderActions(t);
-  const isMain = selected === "jarvis" || selected === "brain" || selected === "board";
+  const isMain = ["jarvis", "brain", "board"].includes(t.id);             // nothing selected = Jarvis's chat
   $("text").placeholder = isMain ? "Message Jarvis…  (Enter to send, Shift+Enter for a new line)" : `Message for the ${t.title}… (goes through Jarvis)`;
   $("hint").textContent = !state.tmux ? "Typing needs the office session: run `jarvis office` in a terminal." :
     isMain ? "Typed into your terminal session, so both stay in sync." : "Sub-agents take a job and report back; Jarvis passes this on.";
@@ -568,7 +568,7 @@ async function sendText() {
   const text = $("text").value.trim();
   if (!text) return;
   const t = target(selected);
-  const out = selected === "jarvis" ? text : `Message for the ${t.title} sub-agent (send it a follow-up, or re-run it with this): ${text}`;
+  const out = !t || t.id === "jarvis" || t.id === "brain" || t.id === "board" ? text : `Message for the ${t.title} sub-agent (send it a follow-up, or re-run it with this): ${text}`;
   try { await post("/api/send", { text: out }); $("text").value = ""; toast("Sent to your session"); }
   catch (err) { toast(err.message); }
 }

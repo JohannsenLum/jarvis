@@ -640,7 +640,8 @@
       el.innerHTML = `<div class="po-wrap"><canvas></canvas><div class="po-overlay"></div></div>`;
       canvas = el.querySelector("canvas"); overlay = el.querySelector(".po-overlay");
       ctx = canvas.getContext("2d");
-      overlay.addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); if (b) onSelect(b.dataset.id); });
+      // Click someone to select them; click anywhere else in the room to clear the selection.
+      el.querySelector(".po-wrap").addEventListener("click", (e) => { const b = e.target.closest("[data-id]"); onSelect(b ? b.dataset.id : null); });
       new ResizeObserver(fit).observe(el);
       fit();
     },
