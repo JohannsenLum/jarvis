@@ -126,12 +126,20 @@
     ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(ck.x, ck.y); ctx.lineTo(ck.x + Math.sin(ma) * 10, ck.y - Math.cos(ma) * 10); ctx.stroke();
     poly(onWall(14.3, 2.6, 110, 126), "#2C3E66");
     alongX(14.45, 0, 124, () => { ctx.fillStyle = "#E8A838"; ctx.font = "800 10px ui-monospace, Menlo, monospace"; ctx.fillText("PANTRY", 8, 11); });
-    poly(onWall(18.3, 1.5, 0, 114), "#FFFFFF"); poly(onWall(18.4, 1.3, 0, 108), "#C08A5F");
-    poly(onWall(18.55, 1.0, 60, 94), "#D39D72"); poly(onWall(18.55, 1.0, 14, 50), "#D39D72");
+    poly(onWall(18.3, 1.5, 0, 114), "#FFFFFF");
+    if (now < wcDoorUntil && wcDoorUntil !== Infinity) {                      // door open: a dark doorway and the door swung in
+      poly(onWall(18.4, 1.3, 0, 108), "#3B3029");
+      poly([up(p(18.4, 0), 0), up(p(18.4, 0.9), 0), up(p(18.4, 0.9), 108), up(p(18.4, 0), 108)], "#C08A5F", "rgba(0,0,0,.2)");
+    } else {
+      poly(onWall(18.4, 1.3, 0, 108), "#C08A5F");
+      poly(onWall(18.55, 1.0, 60, 94), "#D39D72"); poly(onWall(18.55, 1.0, 14, 50), "#D39D72");
+    }
     poly(onWall(18.7, 0.7, 96, 106), "#FFFFFF");
     alongX(18.74, 0, 106, () => { ctx.fillStyle = "#334155"; ctx.font = "800 8px ui-monospace, Menlo, monospace"; ctx.fillText("WC", 6, 8); });
     const kn = up(p(19.45, 0), 54); circle(kn.x, kn.y, 2.6, "#F2C94C");
-    const occ = up(p(19.5, 0), 102); circle(occ.x, occ.y, 3, wcBusy() ? "#E5484D" : "#30A46C");
+    const occ = up(p(19.45, 0), 118), busyWc = wcBusy();
+    rr(occ.x - 13, occ.y - 5, 26, 10, 5, "#1F2533"); circle(occ.x - 7, occ.y, 3, busyWc ? "#E5484D" : "#30A46C");
+    ctx.fillStyle = "#FFFFFF"; ctx.font = "700 5px ui-monospace, Menlo, monospace"; ctx.fillText(busyWc ? "BUSY" : "FREE", occ.x - 2, occ.y + 2);
 
     // floor: warm oak planks, soft corner shade and window light
     for (let gx = 0; gx < W; gx++) for (let gy = 0; gy < D; gy++) {
@@ -293,7 +301,8 @@
     monitor(gx + w * 0.24, gy + d * 0.34, H, working, TINT[occupant?.type] || "#8FE3C8");
     poly([top(0.5, 0.56), top(0.7, 0.56), top(0.7, 0.76), top(0.5, 0.76)], "#FFFFFF", "rgba(0,0,0,.2)");
     if (occupant) {
-      const m = top(0.86, 0.72); mug(m.x, m.y, accent, working && occupant.type !== "jarvis");
+      const m = top(0.86, 0.72), act = actors[occupant.id];
+      if (act && now < act.mugUntil && act.phase === "desk" && now > act.sipUntil) bigMug(m.x, m.y); else mug(m.x, m.y, accent, false);
       DECO[occupant.type]?.(top);
       alongX(gx + w * 0.08, gy + d, H - 9, () => {                 // nameplate on the front edge
         rr(0, -8, 46, 9.5, 2.5, "#FFFFFF", "rgba(0,0,0,.2)"); rr(0, -8, 3.5, 9.5, 2, accent);
@@ -336,7 +345,7 @@
     let hands;
     if (pose === "stretch") { const k = Math.sin(T * 3) * 3; hands = [[x - 16 - k, bodyTop - 26], [x + 16 + k, bodyTop - 26]]; }
     else if (pose === "wave") hands = [[x - 15, bodyTop + 24], [x + 21, bodyTop - 14 + Math.sin(T * 10) * 4]];
-    else if (pose === "sip") hands = [[x - 15, bodyTop + 24], [x + 4, bodyTop - 5]];
+    else if (pose === "sip" || pose === "sit-sip") hands = [[x - 15, bodyTop + 24], [x + 4, bodyTop - 5]];
     else if (pose === "sit-type") hands = [[x - 9 + Math.sin(T * 16) * 2, bodyTop + 27], [x + 9 + Math.sin(T * 16 + 2) * 2, bodyTop + 27]];
     else if (pose === "sit-think") hands = [[x - 10, bodyTop + 25], [x + 3, bodyTop - 3]];
     else if (walking) { const sw = Math.sin(T * 11) * 5; hands = [[x - 15, bodyTop + 23 + sw], coffee ? [x + 13, bodyTop + 12] : [x + 15, bodyTop + 23 - sw]]; }
@@ -347,7 +356,7 @@
     rr(x - 14, bodyTop, 28, 30, 11, sg, outline);
     if (!back) { ctx.fillStyle = "#FFFFFF"; ctx.beginPath(); ctx.moveTo(x - 5, bodyTop + 1); ctx.lineTo(x, bodyTop + 7); ctx.lineTo(x + 5, bodyTop + 1); ctx.fill(); }
     if (look.tie && !back) { ctx.fillStyle = look.tie; ctx.beginPath(); ctx.moveTo(x - 2.5, bodyTop + 6); ctx.lineTo(x + 2.5, bodyTop + 6); ctx.lineTo(x + 3.5, bodyTop + 20); ctx.lineTo(x, bodyTop + 24); ctx.lineTo(x - 3.5, bodyTop + 20); ctx.fill(); }
-    if (!behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (pose === "sip" || coffee) bigMug(hands[1][0] + 4, hands[1][1] + 8); }
+    if (!behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (pose === "sip" || pose === "sit-sip" || coffee) bigMug(hands[1][0] + 4, hands[1][1] + 8); }
     const tilt = pose === "sit-think" ? 0.14 : pose === "look" ? Math.sin(T * 1.3) * 0.2 : pose === "stretch" ? -0.08 : 0;
     const hx = x + tilt * 16, hy = bodyTop - 16;
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(tilt * 0.6);
@@ -414,18 +423,21 @@
     return [...out.slice(1), ...PLACES[place].via, PLACES[place].at];
   }
   function stepActor(id, standG, mode, dt, canTrip) {
-    const a = actors[id] ||= { phase: "desk", n: 0, until: now + (8000 + rnd(id, 0) * 16000) / FAST, stretchUntil: 0, pos: null, route: [], place: null, coffee: false };
+    const a = actors[id] ||= { phase: "desk", n: 0, until: now + (20000 + rnd(id, 0) * 60000) / FAST, stretchUntil: 0, pos: null, route: [], place: null, coffee: false, mugUntil: 0, sipUntil: 0, nextSip: 0 };
     const busy = mode === "working" || mode === "asking";
     if (a.phase === "desk") {
       if (busy || now < a.until) return a;
       a.n++; const r = rnd(id, a.n);
-      if (canTrip && r < 0.3) { a.place = r < 0.19 ? "pantry" : "wc"; a.phase = "out"; a.pos = [...standG]; a.route = routeTo(standG, a.place); a.coffee = false; }
-      else if (r < (canTrip ? 0.42 : 0.12)) { a.stretchUntil = now + 3000; a.until = now + 3000 + (18000 + rnd(id, a.n + 1) * 20000) / FAST; }
-      else a.until = now + (16000 + rnd(id, a.n + 2) * 22000) / FAST;
+      // One decision a minute or so: a trip about every 5 minutes (pantry ~8 min, restroom ~15 min), a stretch
+      // now and then, otherwise stay put. No second coffee while the first one is still on the desk.
+      const wantsCoffee = r < 0.14 && now > a.mugUntil;
+      if (canTrip && (wantsCoffee || (r >= 0.14 && r < 0.22))) { a.place = wantsCoffee ? "pantry" : "wc"; a.phase = "out"; a.pos = [...standG]; a.route = routeTo(standG, a.place); a.coffee = false; if (a.place === "wc") wcDoorUntil = Infinity; }
+      else if (r >= 0.22 && r < (canTrip ? 0.34 : 0.3)) { a.stretchUntil = now + 3000; a.until = now + 3000 + (45000 + rnd(id, a.n + 1) * 45000) / FAST; }
+      else a.until = now + (45000 + rnd(id, a.n + 2) * 45000) / FAST;
       return a;
     }
     if (a.phase === "at") {
-      if (busy || now > a.stayUntil) { a.phase = "back"; a.coffee = a.place === "pantry"; a.route = routeTo(standG, a.place).reverse().slice(1).concat([standG]); }
+      if (busy || now > a.stayUntil) { if (a.place === "wc") wcDoorUntil = now + 1400; a.phase = "back"; a.coffee = a.place === "pantry"; a.route = routeTo(standG, a.place).reverse().slice(1).concat([standG]); }
       return a;
     }
     if (busy && a.phase === "out") { a.phase = "back"; a.route = [[a.pos[0], standG[1]], standG]; }
@@ -436,11 +448,15 @@
       else { a.pos = [a.pos[0] + (dx / dist) * step, a.pos[1] + (dy / dist) * step]; a.dir = dx + dy; step = 0; }
     }
     if (!a.route.length) {
-      if (a.phase === "out") { a.phase = "at"; a.stayUntil = now + (a.place === "wc" ? 7000 : 5500) / Math.min(FAST, 2); }
-      else { a.phase = "desk"; a.coffee = false; a.until = now + (18000 + rnd(id, a.n + 3) * 22000) / FAST; }
+      if (a.phase === "out") { a.phase = "at"; a.stayUntil = now + (a.place === "wc" ? 9000 : 6000) / Math.min(FAST, 2); if (a.place === "wc") wcDoorUntil = now + 1400; }
+      else {
+        if (a.coffee) { a.mugUntil = now + 8 * 60000 / FAST; a.nextSip = now + 4000; }      // the mug goes on the desk
+        a.phase = "desk"; a.coffee = false; a.until = now + (45000 + rnd(id, a.n + 3) * 45000) / FAST;
+      }
     }
     return a;
   }
+  let wcDoorUntil = 0;
   function wcBusy() { return Object.values(actors).some((a) => a.phase === "at" && a.place === "wc"); }
   function placement(a, mode, doing, seat, stand) {
     if (mode === "working") return { g: seat, pose: /thinking/.test(doing || "") ? "sit-think" : "sit-type" };
@@ -450,6 +466,10 @@
     }
     if (mode === "asking") return { g: stand, pose: "wave" };
     if (now < a.stretchUntil) return { g: stand, pose: "stretch" };
+    if (now < a.mugUntil) {
+      if (now > a.nextSip) { a.sipUntil = now + 2500; a.nextSip = now + (25000 + rnd("sip" + a.n, Math.floor(now / 1000)) * 25000) / FAST; }
+      if (now < a.sipUntil) return { g: seat, pose: "sit-sip" };
+    }
     return { g: seat, pose: "sit" };
   }
 

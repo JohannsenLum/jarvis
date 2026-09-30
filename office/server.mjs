@@ -15,7 +15,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { ops } from "./ops.mjs";
 
@@ -328,6 +328,46 @@ function askDashboard(hook, res) {
   });
 }
 
+// ---------- Obsidian ----------
+// Obsidian only opens folders it already knows as vaults. Add the Jarvis vault to its list (once, with a
+// backup of Obsidian's settings), then open the vault or a page with an obsidian:// link.
+function openInObsidian(rel) {
+  if (!VAULT) return { ok: false, message: "This folder has no vault." };
+  if (!fs.existsSync("/Applications/Obsidian.app")) return { ok: false, message: "Obsidian isn't installed. Get it free at obsidian.md, or use the graph view here." };
+  const cfgPath = path.join(os.homedir(), "Library", "Application Support", "obsidian", "obsidian.json");
+  let cfg = { vaults: {} }, added = false;
+  try { cfg = JSON.parse(fs.readFileSync(cfgPath, "utf8")); } catch { /* first run */ }
+  cfg.vaults ||= {};
+  if (!Object.values(cfg.vaults).some((v) => path.resolve(v.path) === path.resolve(VAULT))) {
+    try { if (fs.existsSync(cfgPath) && !fs.existsSync(cfgPath + ".jarvis-backup")) fs.copyFileSync(cfgPath, cfgPath + ".jarvis-backup"); } catch { /* ignore */ }
+    cfg.vaults[crypto.randomBytes(8).toString("hex")] = { path: VAULT, ts: Date.now() };
+    fs.mkdirSync(path.dirname(cfgPath), { recursive: true });
+    fs.writeFileSync(cfgPath, JSON.stringify(cfg));
+    added = true;
+  }
+  const running = (() => { try { execFileSync("pgrep", ["-x", "Obsidian"], { stdio: "ignore" }); return true; } catch { return false; } })();
+  if (added && running) return { ok: false, message: "Added your vault to Obsidian. Quit Obsidian (Cmd+Q) and press the button again: it only reads its vault list when it starts." };
+  const target = rel ? path.join(VAULT, rel) : VAULT;
+  try { execFileSync("open", [`obsidian://open?path=${encodeURIComponent(target)}`]); } catch (e) { return { ok: false, message: String(e.message || e) }; }
+  return { ok: true, message: added ? "Opening your vault in Obsidian (added it to Obsidian's vault list)." : "Opening in Obsidian." };
+}
+
+// ---------- restart when updated ----------
+// `jarvis update` replaces these files; restart so the dashboard always runs the code it serves.
+const OWN = ["server.mjs", "ops.mjs"].map((f) => path.join(HERE, f));
+const stamp = () => OWN.map((f) => { try { return fs.statSync(f).mtimeMs; } catch { return 0; } }).join(",");
+const startedWith = stamp();
+setInterval(() => {
+  if (stamp() === startedWith) return;
+  server.close(); server.closeAllConnections?.();
+  const log = fs.openSync(path.join(STATE_DIR, "server.log"), "a");
+  setTimeout(() => {
+    const child = spawn(process.execPath, process.argv.slice(1), { detached: true, stdio: ["ignore", log, log] });
+    try { fs.writeFileSync(path.join(STATE_DIR, "server.pid"), String(child.pid)); } catch { /* ignore */ }
+    child.unref(); process.exit(0);
+  }, 300);
+}, 4000);
+
 // ---------- http ----------
 let lastSent = "";
 function broadcast(force = true) {
@@ -393,6 +433,7 @@ const server = http.createServer(async (req, res) => {
         typeIntoSession(text, b.key);
         return send(res, 200, { ok: true });
       }
+      if (url.pathname === "/api/open-obsidian") return send(res, 200, openInObsidian(String(b.path || "")));
       const m = url.pathname.match(/^\/api\/permission\/([a-f0-9]+)$/);
       if (m) {
         const item = pending.get(m[1]);
