@@ -348,6 +348,8 @@ function openInObsidian(rel) {
     startedAt = Date.parse(execFileSync("ps", ["-o", "lstart=", "-p", pid], { encoding: "utf8" }).trim());
   } catch { /* not running */ }
   let addedAt = 0; try { addedAt = Number(fs.readFileSync(markPath, "utf8")); } catch { /* never */ }
+  // Obsidian treats a folder as a vault once it has an .obsidian settings folder; make sure it does.
+  try { fs.mkdirSync(path.join(VAULT, ".obsidian"), { recursive: true }); } catch { /* ignore */ }
   if (!known) {
     if (startedAt) return { ok: false, message: `Obsidian is open and doesn't know your vault yet. Quit Obsidian (Cmd+Q) and press this again. ${HOW}` };
     try { if (fs.existsSync(cfgPath) && !fs.existsSync(cfgPath + ".jarvis-backup")) fs.copyFileSync(cfgPath, cfgPath + ".jarvis-backup"); } catch { /* ignore */ }
@@ -358,8 +360,9 @@ function openInObsidian(rel) {
   } else if (startedAt && addedAt && startedAt < addedAt) {
     return { ok: false, message: `Obsidian was already open when your vault was added, so it can't see it yet. Quit Obsidian (Cmd+Q) and press this again. ${HOW}` };
   }
-  const target = rel ? path.join(VAULT, rel) : VAULT;
-  try { execFileSync("open", [`obsidian://open?path=${encodeURIComponent(target)}`]); } catch (e) { return { ok: false, message: String(e.message || e) }; }
+  // The vault itself opens by name; a page opens by its full path (path= is meant for files in a vault).
+  const url = rel ? `obsidian://open?path=${encodeURIComponent(path.join(VAULT, rel))}` : `obsidian://open?vault=${encodeURIComponent(path.basename(VAULT))}`;
+  try { execFileSync("open", [url]); } catch (e) { return { ok: false, message: String(e.message || e) }; }
   return { ok: true, message: known ? "Opening in Obsidian." : "Opening your vault in Obsidian (added it to Obsidian's vault list)." };
 }
 
