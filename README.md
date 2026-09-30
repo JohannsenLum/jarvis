@@ -35,7 +35,7 @@ The wizard builds **your own Jarvis folder** and a private git repo for it:
 - **Updates:** `jarvis update` swaps `.jarvis/` for the latest version and re-renders. Your vault, your
   `skills/`, your notes and settings stay as they are.
 - **First open:** Claude Code asks you to approve the folder's MCP server (`jarvis`). Say yes.
-- **Always-on** (Telegram, scheduled briefings, desk voice): run `.jarvis/setup.sh` for Hermes, or
+- **Always-on** (Telegram, scheduled briefings, desk voice): run `jarvis setup hermes`, or
   `jarvis schedule install --runner launchd-claude` to run routines through Claude on this Mac.
 - Keep any remote for your Jarvis folder **private**: your vault is in it.
 
@@ -83,7 +83,7 @@ routines need it in a private GitHub repo (the command explains).
 ## Quick start (MacBook, Apple Silicon)
 
 ```bash
-./setup.sh
+jarvis setup hermes      # from the repo: bin/jarvis setup hermes
 ```
 
 The script is interactive and safe to re-run. It:
@@ -96,7 +96,7 @@ The script is interactive and safe to re-run. It:
 5. Connects Telegram: QR code, existing token, or a walkthrough. Skippable.
 6. Installs the gateway as a login service so briefings and Telegram keep running.
 7. Offers Telegram as one DM, topics in your DM (Inbox, Work, Life, Briefings, General), or a group
-   with topics, or skip for later (`hermes/telegram_mode.sh`).
+   with topics, or skip for later (`adapters/hermes/telegram_mode.sh`).
 8. Offers to scan Documents, Desktop, Downloads and cloud drives for client and project folders (names
    only) so onboarding can bring them in (`jarvis-import`). Originals are never moved or changed.
 9. Sets up desk voice: fetches the [`jarvis-voice`](https://github.com/JohannsenLum/jarvis-voice) repo listed in `deps.env` if it
@@ -158,10 +158,9 @@ skills/vendor/        third-party skills (fireworks-tech-graph)
 skills/learned/       skills Jarvis writes for itself (git-ignored in the template)
 bin/jarvis            the CLI (install, doctor, render, schedule, export-skills)
 bin/fireworks         diagram launcher (PNG/GIF)   bin/scan_folders.py  existing-files scanner
-hermes/               Hermes-only extras: recall plugin, Telegram modes
 knowledge/            your vault (Obsidian)
 .claude-plugin/       plugin + marketplace manifests
-setup.sh              guided setup (Hermes home + other harnesses)
+adapters/hermes/      optional Hermes home: setup.sh (`jarvis setup hermes`), recall plugin, Telegram modes
 ```
 
 ## Sub-agents

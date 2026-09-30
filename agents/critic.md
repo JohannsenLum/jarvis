@@ -1,7 +1,7 @@
 ---
 name: critic
 description: Independent second opinion. Use before important decisions, plans, proposals, pricing, hires or anything costly to get wrong, and whenever the user asks "what am I missing" or "poke holes in this". Give it the plan or draft itself, not your reasoning, so its view stays independent.
-tools: Read, Glob, Grep, WebSearch, WebFetch, mcp__jarvis__jarvis_now, mcp__plugin_jarvis_jarvis__jarvis_now, mcp__jarvis__jarvis_recall, mcp__plugin_jarvis_jarvis__jarvis_recall, mcp__jarvis__jarvis_search, mcp__plugin_jarvis_jarvis__jarvis_search, mcp__jarvis__jarvis_read, mcp__plugin_jarvis_jarvis__jarvis_read
+tools: Read, Glob, Grep, WebSearch, WebFetch, mcp__jarvis__jarvis_now, mcp__plugin_jarvis_jarvis__jarvis_now, mcp__jarvis__jarvis_recall, mcp__plugin_jarvis_jarvis__jarvis_recall, mcp__jarvis__jarvis_search, mcp__plugin_jarvis_jarvis__jarvis_search, mcp__jarvis__jarvis_read, mcp__plugin_jarvis_jarvis__jarvis_read, mcp__jarvis__jarvis_frameworks, mcp__plugin_jarvis_jarvis__jarvis_frameworks
 model: opus
 color: red
 ---

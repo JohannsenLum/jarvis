@@ -13,7 +13,7 @@ import traceback
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "core"))
-from jarvis_core import config, identity, vault  # noqa: E402
+from jarvis_core import config, frameworks, identity, vault  # noqa: E402
 from jarvis_core.recall import recall_text  # noqa: E402
 
 SERVER = {"name": "jarvis", "version": "1.0.0"}
@@ -59,6 +59,8 @@ TOOLS = {
     "jarvis_settings": ("Get or set Jarvis's role, tone and autonomy. Changes apply everywhere after identity is re-rendered (done automatically).",
                         _s("", role=_str("New role.", enum=list(identity.ROLES)), tone=_str("New tone.", enum=list(identity.TONES)),
                            autonomy=_str("New autonomy.", enum=list(identity.AUTONOMY)))),
+    "jarvis_frameworks": ("List Jarvis's frameworks (168-hour week, AIOO, declarations, deal cards…), or get one: its full text, where its results go in the vault and what the user already has.",
+                          _s("", name=_str("Framework id, e.g. 168, aioo, declarations, deal-cards. Omit to list them all."))),
     "jarvis_status": ("Where Jarvis is installed, its settings, onboarding progress and pending items.", _s("No arguments.")),
 }
 
@@ -91,6 +93,8 @@ def call(name: str, args: dict) -> str:
             _refresh_installed()
             return f"Settings now: {json.dumps(s)}. Applies from the next conversation in every connected tool."
         return json.dumps(identity.settings())
+    if name == "jarvis_frameworks":
+        return frameworks.get(args["name"]) if args.get("name") else json.dumps(frameworks.listing(), indent=2)
     if name == "jarvis_status":
         cfg = config.load()
         ob = vault.onboarding()

@@ -14,6 +14,7 @@ is Jarvis's job.
 | `life/` | Health, money, home, learning… one folder per active area | Jarvis |
 | `relationships/` | `people/` (one page per person), `circles.md`, `events.md` | Jarvis |
 | `work/` | One folder per job or company, laid out by its template | Jarvis |
+| `frameworks/` | Results of Jarvis's frameworks, one folder each: `168/`, `aioo/`, `declarations/`, `deal-cards/`. The frameworks themselves live in Jarvis and are never copied here | Jarvis, with the user. `declarations/` is written only in the user's words, after a yes |
 | `journal/` | `daily/`, `weekly/`, `quarterly/` reviews | Jarvis drafts, the user reflects |
 | `_templates/` | Page templates | The user |
 | `now.md` | Short-term memory: focus this week, open loops, next 7 days. Shown to Jarvis at the start of every conversation | Jarvis, rewritten nightly by `brain-consolidate` |
@@ -27,7 +28,7 @@ is Jarvis's job.
    Everything else links to it with `[[wikilinks]]`. Never copy a person's details into a client page.
 2. **Frontmatter on every page** (see `_templates/`). Minimum:
    ```yaml
-   type: person | client | project | decision | goal | note | area | review | framework
+   type: person | client | project | decision | goal | note | area | review | framework | framework-result
    status: active | draft | done | archived
    updated: YYYY-MM-DD
    sources: [raw/2026/09/brightlabs-brief.pdf]   # where the facts came from, if anywhere
@@ -48,7 +49,7 @@ Storage rules per area live in `me/onboarding.json` → `privacy` (`local | encr
 - `local`: never synced, never sent to third-party tools, never included in cloud backups.
 - `encrypted`: may be backed up only through an encrypted backup.
 - `cloud`: may sync with the user's cloud storage (for example iCloud Drive).
-Default for `life/health/`, `life/finance/`, `relationships/`, `journal/` is `local`.
+Default for `life/health/`, `life/finance/`, `relationships/`, `journal/` and `frameworks/declarations/` is `local`.
 
 ## Operations
 - **Ingest** (`brain-ingest` skill): new source → `raw/` → update or create wiki pages → `index.md` → `log.md`.

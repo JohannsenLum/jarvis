@@ -20,3 +20,4 @@ skills/learned/*
 
 .DS_Store
 .obsidian/workspace*.json
+__pycache__/

@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Configure how Jarvis appears in Telegram. Used by setup.sh and by the jarvis-telegram skill.
+# Configure how Jarvis appears in Telegram. Used by `jarvis setup hermes` and by the jarvis-telegram skill.
 #
 #   telegram_mode.sh dm             one normal DM conversation
 #   telegram_mode.sh dm-topics      topics inside your DM: Inbox, Work, Life, Briefings, General

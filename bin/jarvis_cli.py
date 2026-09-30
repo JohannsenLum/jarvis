@@ -5,6 +5,7 @@
     jarvis render                          re-render identity (role/tone/autonomy) everywhere installed
     jarvis doctor                          what's installed where, and what's detected on this Mac
     jarvis schedule ...                    run scheduled jobs from another runtime (see `jarvis schedule -h`)
+    jarvis setup hermes [--voice]          optional: Hermes as the always-on home (Telegram, cron, voice)
     jarvis mcp                             run the Jarvis MCP server on stdio (what harnesses launch)
 
 Harnesses: claude-code, codex, deepseek, hermes, openclaw, cursor, gemini, claude-desktop.
@@ -284,8 +285,10 @@ def install(name: str, quiet: bool = False) -> None:
         run(["hermes", "mcp", "add", "jarvis", "--command", MCP_CMD[0], "--args", *MCP_CMD[1:]], answer="Y\n")
         plugin = hermes_home / "plugins" / "jarvis-recall"
         plugin.parent.mkdir(parents=True, exist_ok=True)
+        if plugin.is_symlink():
+            plugin.unlink()                                   # relink (the plugin may have moved)
         if not plugin.exists():
-            plugin.symlink_to(REPO / "hermes" / "plugins" / "jarvis-recall")
+            plugin.symlink_to(REPO / "adapters" / "hermes" / "plugins" / "jarvis-recall")
         run(["hermes", "plugins", "enable", "jarvis-recall"])
         say("✓ Hermes: identity (SOUL.md), MCP server, recall plugin. Skills load from the repo (skills.external_dirs).", quiet)
     elif name == "openclaw":
@@ -420,7 +423,13 @@ def update(source: str) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         if subprocess.run(["git", "clone", "--depth", "1", "-q", source, tmp]).returncode != 0:
             raise SystemExit(f"Couldn't download {source}")
-        for part in ("core", "mcp", "hooks", "bin", "agents", "hermes", "setup.sh", "deps.env", "README.md"):
+        for old in ("hermes", "setup.sh"):                           # pre-adapters layout
+            p_old = REPO / old
+            if p_old.is_dir():
+                shutil.rmtree(p_old)
+            elif p_old.exists():
+                p_old.unlink()
+        for part in ("core", "mcp", "hooks", "bin", "agents", "frameworks", "adapters", "deps.env", "README.md"):
             src, dst = Path(tmp) / part, REPO / part
             if not src.exists():
                 continue
@@ -468,6 +477,9 @@ def main() -> None:
     p.add_argument("answers", type=Path)
     p = sub.add_parser("update", help="update the framework in this Jarvis folder")
     p.add_argument("--source", default="https://github.com/JohannsenLum/jarvis.git")
+    p = sub.add_parser("setup", help="optional always-on home: jarvis setup hermes [--voice]")
+    p.add_argument("runtime", choices=["hermes"])
+    p.add_argument("rest", nargs=argparse.REMAINDER)
     sub.add_parser("mcp", help="run the MCP server on stdio")
     p = sub.add_parser("schedule", help="scheduled jobs from another runtime")
     p.add_argument("args", nargs=argparse.REMAINDER)
@@ -495,6 +507,8 @@ def main() -> None:
         doctor()
     elif a.cmd == "export-skills":
         export_skills(a.out)
+    elif a.cmd == "setup":
+        os.execv("/bin/zsh", ["/bin/zsh", str(REPO / "adapters" / a.runtime / "setup.sh"), *a.rest])
     elif a.cmd == "mcp":
         os.execv(MCP_CMD[0], MCP_CMD)
     elif a.cmd == "schedule":

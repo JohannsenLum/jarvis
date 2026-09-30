@@ -25,7 +25,7 @@ MAX_MATCHES = 3
 RESCAN_SECONDS = 60
 
 SEARCH_DIRS = ["relationships/people", "work", "life", "me/goals"]
-POINTER_ONLY = ("life/health/", "life/finance/", "journal/")
+POINTER_ONLY = ("life/health/", "life/finance/", "journal/", "frameworks/declarations/")
 SKIP_NAMES = {"overview", "index", "log", "readme", "role", "wins", "career", "metrics", "program",
               "budget", "notes", "projects", "meetings", "clients", "docs"}
 

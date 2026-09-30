@@ -27,7 +27,7 @@ metadata:
 Telegram must be connected first (`TELEGRAM_ALLOWED_USERS` set in `~/.hermes/.env`). If it isn't,
 say so and offer the Telegram connection steps first (onboarding `references/telegram.md`).
 
-Run the Jarvis helper (path: `<Jarvis repo>/hermes/telegram_mode.sh`, repo path: `jarvis_status`) with the terminal tool, with the user's approval:
+Run the Jarvis helper (path: `<Jarvis repo>/adapters/hermes/telegram_mode.sh`, repo path: `jarvis_status`) with the terminal tool, with the user's approval:
 - Topics in DM: `telegram_mode.sh dm-topics`, then tell the user the one manual step it prints
   (BotFather Mini App → My bots → bot → Bot Settings → Threads Settings → Threaded Mode on).
   After they confirm and the gateway has restarted (`hermes gateway restart`, ask first; it drops

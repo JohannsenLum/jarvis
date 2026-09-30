@@ -18,6 +18,9 @@ metadata:
    - People: who they saw or talked to; who is overdue
    - Wins → offer to add to `wins.md` if an employee template is active
    - Suggested top 3 for next week
+2b. If `frameworks/168/budget.md` exists, run the 168 weekly audit (`jarvis-frameworks`): budget vs
+   this week's calendar, into `frameworks/168/weeks/YYYY-Www.md`, and put the two biggest gaps in the review.
+   If `frameworks/declarations/declarations.md` exists and a review is due, note which declarations moved.
 3. Send the user a short summary and ask two reflection questions with your question tool
    (open-ended): "What went well this week?" and "What would you change next week?"
    Add their answers under `## Reflection`. If they skip, leave the section empty.

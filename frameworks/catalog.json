@@ -1,0 +1,58 @@
+{
+  "source": {
+    "repo": "https://github.com/twiss-io/lifeos-plugin",
+    "path": "frameworks/",
+    "commit": "2a1806bb97d4dfae47268df3fb8b12b6bf1783d4"
+  },
+  "frameworks": [
+    {
+      "id": "168",
+      "file": "168.md",
+      "kind": "guided",
+      "version": "2026-09-30",
+      "short": "Budget your 168-hour week like money: life first, work gets the rest",
+      "outputs": {
+        "map.md": "Three weeks of mapped reality (what the week actually looks like) before any optimising",
+        "budget.md": "The current weekly budget, category by category, and the current season",
+        "weeks/YYYY-Www.md": "Weekly audit: budget vs actuals, which categories were robbed, hours lost"
+      },
+      "cadence": "weekly (in the weekly review)"
+    },
+    {
+      "id": "aioo",
+      "file": "aioo.md",
+      "kind": "decision",
+      "version": "2026-09-30",
+      "short": "Actions × Inputs → Outputs → Outcome: plan backwards, fix purpose when nothing moves",
+      "outputs": {
+        "<outcome-slug>.md": "One chain per outcome: outcome → outputs needed → actions → inputs (missing inputs are the to-do list), plus re-edits after acting"
+      },
+      "cadence": "when a goal is set, a playbook is copied, or progress stalls"
+    },
+    {
+      "id": "declarations",
+      "file": "declarations.md",
+      "kind": "guided",
+      "version": "2026-09-30",
+      "short": "Goals as present-tense states of being (\"I am…\"), read daily",
+      "outputs": {
+        "declarations.md": "The declaration document, in the user's own words. Written only after the user says yes to the wording",
+        "reviews/YYYY-MM-DD.md": "Anchor audits: which declarations show movement, which are gaps, the fix list"
+      },
+      "cadence": "daily read, reviewed monthly or quarterly",
+      "private": true
+    },
+    {
+      "id": "deal-cards",
+      "file": "deal-cards.md",
+      "kind": "guided",
+      "version": "2026-09-30",
+      "short": "A card for every live opportunity: context, BANT, next step, tied to a person",
+      "outputs": {
+        "filter.md": "The user's deal filter: this season's rules every opportunity is run through",
+        "cards/<person>--<deal>.md": "One card per opportunity, linked to the person's page in relationships/people/"
+      },
+      "cadence": "whenever a conversation contains an opportunity"
+    }
+  ]
+}

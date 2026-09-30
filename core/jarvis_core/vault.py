@@ -15,7 +15,7 @@ from pathlib import Path
 
 from . import config
 
-PRIVATE = ("life/health/", "life/finance/", "journal/", "relationships/")
+PRIVATE = ("life/health/", "life/finance/", "journal/", "relationships/", "frameworks/declarations/")
 TEXT_SUFFIXES = {".md", ".txt", ".json", ".csv", ".yaml", ".yml"}
 
 

@@ -1,12 +1,12 @@
 #!/bin/zsh
 # Jarvis setup (macOS). Safe to re-run: every step checks before it changes anything.
 #
-#   ./setup.sh            full guided setup
-#   ./setup.sh --voice    only the desk voice client
+#   jarvis setup hermes           full guided setup (Hermes as the always-on home)
+#   jarvis setup hermes --voice   only the desk voice client
 set -e
-ROOT="$(cd "$(dirname "$0")" && pwd)"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"   # framework root (repo, or <folder>/.jarvis)
 HERMES_HOME="${HERMES_HOME:-$HOME/.hermes}"
-# Works both from the Jarvis repo and from inside a Jarvis folder (<folder>/.jarvis/setup.sh).
+# Works both from the Jarvis repo and from inside a Jarvis folder (run it with: jarvis setup hermes).
 KNOWLEDGE="$(python3 -c "import sys; sys.path.insert(0, '$ROOT/core'); from jarvis_core import config; print(config.vault())")"
 USER_SKILLS="$(python3 -c "import sys; sys.path.insert(0, '$ROOT/core'); from jarvis_core import config; r = config.instance_root(); print(r / 'skills' if r else '$ROOT/skills/learned')")"
 
@@ -48,7 +48,7 @@ fetch_voice() {  # make sure the jarvis-voice repo is present; returns 1 to skip
     menu "How do you want to get it?" \
       "Download it from GitHub${JARVIS_VOICE_REPO:+ ($JARVIS_VOICE_REPO)}" \
       "I already have it on this Mac (choose the folder)" \
-      "Skip voice for now (run ./setup.sh --voice later)"
+      "Skip voice for now (run: jarvis setup hermes --voice)"
     case $REPLY in
       1)
         url=$JARVIS_VOICE_REPO
@@ -75,7 +75,7 @@ fetch_voice() {  # make sure the jarvis-voice repo is present; returns 1 to skip
           return 0
         fi
         warn "That folder doesn't look like jarvis-voice (no scripts/setup.sh and jarvis_voice/)." ;;
-      3) info "Skipped. Run ./setup.sh --voice whenever you're ready."; return 1 ;;
+      3) info "Skipped. Run: jarvis setup hermes --voice whenever you're ready."; return 1 ;;
       *) warn "Choose 1, 2 or 3." ;;
     esac
   done
@@ -98,7 +98,7 @@ setup_voice() {
     else info "Standard mode: every request goes to Jarvis. Add the key to $venv any time."; fi
   fi
   if ! command -v brew >/dev/null; then
-    warn "Homebrew is needed for whisper.cpp. Install it from https://brew.sh, then run ./setup.sh --voice"
+    warn "Homebrew is needed for whisper.cpp. Install it from https://brew.sh, then run: jarvis setup hermes --voice"
     return
   fi
   if yes_no "Run the voice installer now? (whisper.cpp, Caps Lock → F18, Mic/Accessibility permissions, Chrome link)" y; then
@@ -122,9 +122,9 @@ else
   if yes_no "Run the official installer now? (curl https://hermes-agent.nousresearch.com/install.sh | bash)" y; then
     curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
     export PATH="$HOME/.local/bin:$PATH"
-    command -v hermes >/dev/null || { warn "Open a new terminal so 'hermes' is on your PATH, then re-run ./setup.sh"; exit 1; }
+    command -v hermes >/dev/null || { warn "Open a new terminal so 'hermes' is on your PATH, then re-run: jarvis setup hermes"; exit 1; }
   else
-    warn "Install Hermes, then re-run ./setup.sh"; exit 1
+    warn "Install Hermes, then re-run: jarvis setup hermes"; exit 1
   fi
 fi
 mkdir -p "$HERMES_HOME"
@@ -366,9 +366,9 @@ if [[ -n $(env_get "$HERMES_HOME/.env" TELEGRAM_ALLOWED_USERS) ]]; then
     "A group with topics (answers only when @mentioned)" \
     "Skip for now (Jarvis can set it up later: say \"set up my Telegram topics\")"
   case $REPLY in
-    1) "$ROOT/hermes/telegram_mode.sh" dm-topics ;;
-    2) "$ROOT/hermes/telegram_mode.sh" dm ;;
-    3) "$ROOT/hermes/telegram_mode.sh" group-topics ;;
+    1) "$ROOT/adapters/hermes/telegram_mode.sh" dm-topics ;;
+    2) "$ROOT/adapters/hermes/telegram_mode.sh" dm ;;
+    3) "$ROOT/adapters/hermes/telegram_mode.sh" group-topics ;;
     *) info "Skipped. Normal DM for now." ;;
   esac
 fi

@@ -94,6 +94,10 @@ Confirm the list back in one line before creating pages.
   `Regret minimization`, `80/20 rule`
 - "Any of these?" multi_select: `First principles`, `Pre-mortem`, `Deep work`, `1% better`
 - "Any rules of your own you live by? One per line, or skip." (open)
+- "Want to start one of my frameworks after setup?" `168-hour week (budget your time)`,
+  `Declarations (goals as who you are)`, `AIOO (plan backwards from the outcome)`, `Deal cards (track
+  opportunities)`. "Other" / no answer = skip, and add it to `pending`. Record the choice as
+  `frameworks.next` in onboarding.json; don't run it now. Deal cards fit people with clients or deals.
 
 ### 8. Rhythm and chat (one batch)
 - "When should I send your morning briefing?" `07:30`, `07:00`, `08:00`, `Skip for now`
@@ -131,7 +135,7 @@ Skipped areas default to `local` (safest) and go in `pending`. Only ask Health/M
   `Yes, standard mode`, `Not now`
 Jev fast mode (instant Mac commands and multi-step web tasks in Chrome): tell them to get a key at
 console.typesafe.ai. Standard mode needs no key (every request comes to you; a bit slower).
-Either way they run `./setup.sh --voice` in the Jarvis folder: it fetches the jarvis-voice app if
+Either way they run `jarvis setup hermes --voice` in a terminal: it fetches the jarvis-voice app if
 needed, asks for the key privately (never paste keys in chat), and installs the `jarvis-voice` command.
 "Not now" goes in `pending`.
 
@@ -143,7 +147,7 @@ happens after Build. "Skip for now" goes in `pending`.
 
 ### 13. Build
 1. Create the pages the answers actually fill (profile, goals, each named person, client, company,
-   chosen framework), in the places `references/templates.md` maps out, creating folders as needed.
+   chosen principle), in the places `references/templates.md` maps out, creating folders as needed.
    **No empty placeholder folders.** Use the page templates in `_templates/`. Do not overwrite
    existing files; merge. Also write `now.md` (from goals and anything due soon) and an empty
    `me/_proposals.md` with a one-line header.
@@ -165,7 +169,8 @@ happens after Build. "Skip for now" goes in `pending`.
    the rest overnight if there are more.
 7. Finish with a short summary: what you built (counts), what's pending, and three things to try
    ("Tell me something to remember", "What's my week look like?", "Help me decide …").
-   Mention they can open the vault folder in Obsidian.
+   Mention they can open the vault folder in Obsidian. If they picked a framework (`frameworks.next`),
+   offer to start it now with `jarvis-frameworks`.
 
 ## Pitfalls
 - Asking too much at once. Stick to the batches above.

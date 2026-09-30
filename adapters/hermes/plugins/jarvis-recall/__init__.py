@@ -6,7 +6,7 @@ message (never the system prompt). Local file reads only; nothing added when not
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "core"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "core"))
 from jarvis_core.recall import recall_text  # noqa: E402
 
 
