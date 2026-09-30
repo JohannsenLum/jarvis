@@ -607,6 +607,18 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
         script = (f'{claude_cmd}; echo; echo "Claude exited. Start it again with: claude --continue '
                   f'(or close this with: exit)"; exec {shlex.quote(shell)} -l')
         subprocess.run([tm, "new-session", "-d", "-s", "jarvis", "-c", str(root), shell, "-lc", script], check=True)
+        # If the session ever dies, keep the last screen and a log so you can see why.
+        subprocess.run([tm, "set-option", "-t", "jarvis", "remain-on-exit", "on"], capture_output=True)
+        subprocess.run([tm, "pipe-pane", "-t", "jarvis", "-o", f"cat >> {shlex.quote(str(OFFICE_DIR / 'session.log'))}"], capture_output=True)
+        import time
+        time.sleep(1.5)
+        dead = subprocess.run([tm, "display-message", "-p", "-t", "jarvis", "#{pane_dead} #{pane_dead_status}"],
+                              capture_output=True, text=True).stdout.split()
+        if dead and dead[0] == "1":
+            screen = subprocess.run([tm, "capture-pane", "-p", "-t", "jarvis"], capture_output=True, text=True).stdout.strip()
+            subprocess.run([tm, "kill-session", "-t", "jarvis"], capture_output=True)
+            raise SystemExit(f"! Claude's session closed straight away (exit {dead[1] if len(dead) > 1 else '?'}). It showed:\n{screen[-1500:]}\n"
+                             f"  Full log: {OFFICE_DIR / 'session.log'}")
         print("✓ Started Claude in this folder (tmux session 'jarvis')" + (f" with {' '.join(claude_args)}." if claude_args else "."))
     if attach and sys.stdin.isatty():
         print("Opening the session here. Detach with Ctrl-b then d (Claude keeps running).")
