@@ -156,17 +156,8 @@ main{flex:1;display:grid;grid-template-columns:1fr minmax(320px,420px);min-heigh
 .hud-ring svg{width:74px;height:74px} .hud-ring .bg{fill:none;stroke:rgba(79,209,255,.12);stroke-width:6} .hud-ring .fg{fill:none;stroke:var(--c);stroke-width:6;stroke-linecap:round;filter:drop-shadow(0 0 4px rgba(79,209,255,.6))}
 .hud-ring .fg.hot{stroke:var(--hud-warn)}
 .hud-ring b{position:absolute;top:25px;font:700 14px var(--mono)} .hud-ring span{font:600 10.5px var(--mono);letter-spacing:.12em;color:var(--hud-dim)} .hud-ring em{font-style:normal;font-size:10px;color:var(--hud-dim)}
-/* control room */
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:8px;cursor:pointer;text-align:left;color:inherit;font:inherit}
-.card.sel,.card:focus-visible{border-color:var(--accent);outline:none}
-.card h3{margin:0;font-size:15px;display:flex;align-items:center;gap:8px}
 .state{font:600 11px var(--mono);padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--ink-2);text-transform:uppercase;letter-spacing:.06em}
 .state.working{background:var(--work-soft);color:var(--work)}
-.card .last{font-size:13px;color:var(--ink-2);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.nowbox{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
-.nowbox h3{margin:0 0 6px;font-size:14px}
-.nowbox pre{margin:0;white-space:pre-wrap;font:12.5px/1.55 var(--mono);color:var(--ink-2)}
 /* panel */
 .panel{border-left:1px solid var(--line);background:var(--surface);display:flex;flex-direction:column;min-height:0}
 .panel .head{padding:14px 16px;border-bottom:1px solid var(--line)}
@@ -330,8 +321,7 @@ body.ops-mode{--bg:#0d0d0f;--surface:#111113;--ink:#e8e1df;--ink-2:#a3999d;--lin
   <span class="spacer"></span>
   <div class="seg" role="group" aria-label="View">
     <button id="v-office" aria-pressed="true">Office</button>
-    <button id="v-control" aria-pressed="false">Control room</button>
-    <button id="v-ops" aria-pressed="false">Ops</button>
+    <button id="v-ops" aria-pressed="false">Command</button>
   </div>
 </header>
 <main>
@@ -382,7 +372,7 @@ const DESK = {
   creative: { icon: "🎨", label: "Creative", job: "images, video, diagrams" },
 };
 let state = null, selected = "jarvis", view = "ops";
-try { view = localStorage.getItem("office-view") || "ops"; } catch {}
+try { view = localStorage.getItem("office-view") === "office" ? "office" : "ops"; } catch {}
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -428,21 +418,6 @@ function renderOffice() {
     mounted = true;
   }
   PixelOffice.update(state, selected);
-}
-
-function card(id, icon, label, s, job) {
-  const last = s?.messages?.filter((x) => x.role !== "tool").slice(-1)[0];
-  return `<button class="card ${selected === id ? "sel" : ""}" data-id="${id}">
-    <h3>${icon} ${esc(label)} <span class="state ${s?.state === "working" ? "working" : ""}">${esc(stateLabel(id, s?.state))}</span></h3>
-    <div class="sub">${esc(s?.state === "working" ? s.doing : job)}</div>
-    <div class="last">${last ? esc(last.text) : "Nothing yet."}</div></button>`;
-}
-
-function renderControl() {
-  const cards = [card("jarvis", "🤵", "Jarvis", state.main, state.main.title || "main session"),
-    ...Object.keys(DESK).map((t) => card(t, DESK[t].icon, DESK[t].label, state.desks.find((d) => d.type === t).latest, DESK[t].job)),
-    ...state.visitors.map((v) => card(v.id, "👤", v.type, v, v.description))].join("");
-  return `<div class="cards">${cards}</div>` + (state.now ? `<div class="nowbox"><h3>now.md</h3><pre>${esc(state.now)}</pre></div>` : "");
 }
 
 function renderPerms() {
@@ -510,12 +485,11 @@ function render() {
   document.body.classList.toggle("ops-mode", view === "ops");
   document.querySelector(".stage").classList.toggle("ops", view === "ops");
   if (view === "office") renderOffice();
-  else if (view === "ops") {
+  else {
     if (!$("view").querySelector(".hud")) { mounted = false; OpsView.mount($("view"), { send: (text) => post("/api/send", { text }) }); }
     OpsView.update(state);
-  } else { mounted = false; $("view").innerHTML = renderControl(); }
+  }
   $("v-office").setAttribute("aria-pressed", view === "office");
-  $("v-control").setAttribute("aria-pressed", view === "control");
   $("v-ops").setAttribute("aria-pressed", view === "ops");
   renderPerms();
   renderPanel();
@@ -538,7 +512,6 @@ document.addEventListener("click", async (e) => {
 });
 $("v-office").onclick = () => { view = "office"; try { localStorage.setItem("office-view", view); } catch {} render(); };
 $("v-ops").onclick = () => { view = "ops"; try { localStorage.setItem("office-view", view); } catch {} render(); };
-$("v-control").onclick = () => { view = "control"; try { localStorage.setItem("office-view", view); } catch {} render(); };
 
 async function sendText() {
   const text = $("text").value.trim();
