@@ -1,11 +1,34 @@
 # Jarvis
 
-Your own personal assistant, living in a folder you own. Jarvis knows your work, your people, your goals
-and how you like to decide, keeps a private second brain in plain markdown, and runs your mornings.
+A personal assistant with a memory you own and a live dashboard you can work from.
 
-It isn't a new AI app. It's a layer that plugs into the AI tools you already use (Claude, Codex, Gemini,
-Cursor, Hermes, OpenClaw and others), so it's the same Jarvis everywhere: one identity, one vault, one
-set of skills.
+Jarvis keeps track of your work, people, goals and preferences in a plain Markdown vault. It helps you
+plan the day, prepare for decisions, research questions and follow through on commitments. You choose
+its role, tone and how much it can do on its own.
+
+It plugs into the AI tools you already use—Claude Code, Codex, Gemini, Cursor, Hermes and others—with
+one identity, one vault and a shared set of skills. The optional **Office dashboard** is a local browser
+interface for your Claude Code session: a living pixel-art office or a dark **Command** view with a
+particle core, live activity and a resizable conversation panel.
+
+![Jarvis Command dashboard with its particle core, activity panels and conversation sidebar](docs/images/command.png)
+
+*Command view. All screenshots below use fictional demo data.*
+
+## What Jarvis does
+
+| Capability | What it helps you do |
+|---|---|
+| Remember your context | Keep people, clients, projects, goals and decisions in linked Markdown pages; recall them in later conversations |
+| Plan and review | Get a morning briefing, review your week, track open loops and refresh your short-term memory |
+| Research and decide | Ask for sourced research, an independent critique or a structured decision framework |
+| Delegate work | Give focused jobs to the librarian, researcher, critic and creative in tools that support sub-agents |
+| Connect your tools | Work with the services you configure, such as Google, Apple, GitHub and Obsidian |
+| Follow work live | Read the main and sub-agent conversations, inspect the task board, answer prompts and confirm quick commands from the dashboard |
+
+Start with “What's on today?”, “Remember this about my client”, “Research this and give me a second
+opinion”, or “Let's do my weekly review”. Connections and scheduled routines need to be configured;
+the dashboard reflects the session and data available in your Jarvis folder.
 
 ## Get started
 
@@ -71,35 +94,93 @@ try. Anything you skip is saved and offered again later ("finish onboarding").
 ## Office dashboard
 
 ```bash
-jarvis office          # in your Jarvis folder: opens the dashboard; Jarvis runs in the background
+cd ~/Jarvis
+jarvis office          # opens the dashboard; Claude runs in the background
 ```
 
-A local dashboard (http://127.0.0.1:3777) for the Claude session in your Jarvis folder. You can switch
-between two views: an isometric pixel-art **office** (drawn in code, with day and night through the
-windows and your vault as a glowing Brain in the middle), where Jarvis and the four sub-agents sit at
-desks and come alive when they work; a **control room** of cards with live status and `now.md`; and
-**Command**, a command-centre view with the numbers: cost and tokens today and over 7 days (Claude Code's own
-API-equivalent figures, per model), cache hits, context used, your plan's 5-hour and weekly usage (when
-the Claude app is installed), agent runs, a live feed, routines, vault stats, CPU/RAM/disk and which
-services are online, plus quick commands that type into your session.
+Open [the local dashboard](http://127.0.0.1:3777). It follows the Claude Code session in your Jarvis
+folder, including its transcript, sub-agent runs, permission requests and terminal prompts. The
+assistant's identity and vault also work in other supported tools; this dashboard currently connects
+to Claude Code.
 
-- **Click anyone** to read their live conversation: Jarvis's chat, or exactly what the researcher is
-  searching for right now.
-- **Type from the dashboard, the terminal or your phone.** It's the same session: `jarvis office` runs Claude
-  in the background (tmux) with Remote Control on, and the dashboard types into it. `--attach` also opens it
-  in your terminal; `--no-remote-control` turns Remote Control off. Messages to a sub-agent go through Jarvis.
-- **Approve from either side.** Permission prompts appear as Allow / Deny cards; answer there or in the
-  terminal, and the other one clears. Pickers and prompts (onboarding questions, folder trust) show in a
-  live terminal mirror with arrow, Space and Enter buttons.
-- Flags for Claude: `jarvis office --dangerously-skip-permissions` (no prompts at all, so no approval
-  cards), or anything after `--`, e.g. `jarvis office -- --model opus`. If Claude is already running in
-  the office, use `jarvis office restart -- <flags>`.
-- It needs tmux (a small terminal tool that lets the dashboard type into your session). The installer
-  offers to set it up when you say yes to the office, and `jarvis office` offers again if it's missing.
-  Without it the dashboard still shows everything live and approvals still work; you just type in the
-  terminal.
-- Local only: bound to 127.0.0.1, with a per-run token. `jarvis office stop` closes the dashboard;
-  Claude keeps running (`tmux attach -t jarvis` to get back to it).
+### How it looks
+
+Switch between **Office** and **Command** in the top bar. Jarvis remembers your selected view.
+
+| View | Look and layout | What you can explore |
+|---|---|---|
+| **Office** | A warm isometric pixel-art workspace with desks, day/night windows, a pantry and animated characters | Jarvis and four specialist agents, a live task board and the glowing Brain that represents your vault |
+| **Command** | A charcoal interface with muted rose accents, a rotating particle network with perspective and depth, fine grid lines and compact status panels | Session status, usage, quick commands, live activity, routines, agents, memory and system health |
+
+**Office** turns session activity into a shared workspace. Click a character to read its conversation,
+the board for To do / Doing / Done, or the Brain for `now.md` and **Open in Obsidian**. Click empty space
+to clear the selection and return the side panel to Jarvis's chat.
+
+**Command** puts the overview around the particle core. Its compact desktop layout brings routines,
+agents, memory and system indicators onto the same screen; long lists scroll within their panels.
+Smaller screens stack the content vertically. The core has a **Pause motion** control.
+
+![Jarvis Office view showing the isometric workspace, specialist agents and shared conversation panel](docs/images/office.png)
+
+*Office view: click an agent, the task board or the Brain to explore the session.*
+
+### Conversation and controls
+
+- **Resize the chat.** Drag the conversation panel's left divider to make it wider or narrower. The
+  width is saved in your browser. Double-click to reset; focus the divider and use arrow keys for
+  keyboard resizing. On mobile, the conversation stacks below the dashboard.
+- **Read and reply in one place.** Select Jarvis or an agent to see its conversation. Messages to a
+  sub-agent are sent through Jarvis. The terminal mirror shows prompts that need keyboard interaction.
+- **Confirm quick commands.** Morning briefing, What's on today?, Refresh memory, Weekly review,
+  Finish onboarding and Tidy the vault each show the exact message before sending. Choose **Run
+  command** to proceed, or **Cancel** / Escape to dismiss. This is a confirmation step, not two-factor
+  authentication.
+- **Handle approvals.** Permission requests appear as Allow / Deny controls. Answer from the dashboard
+  or terminal; the resolved request clears from the other side. The terminal mirror includes arrow,
+  Space, Enter and Escape controls for pickers and prompts.
+
+<details>
+<summary>Preview: confirming a quick command</summary>
+
+![Quick-command confirmation showing the message and Cancel and Run command buttons](docs/images/confirm-command.png)
+
+Review the message before it reaches your session. Cancel or Escape dismisses it without sending.
+
+</details>
+
+### What the numbers mean
+
+Command shows today's and seven-day token usage and API-equivalent cost, per-model totals, cache hits,
+context usage, agent runs, recent activity, routines, vault statistics, CPU/RAM/disk and service status.
+The 5-hour and weekly plan-usage figures appear when available from the Claude app.
+
+API-equivalent cost is an estimate of usage, **not an extra bill on top of a Claude subscription**.
+An empty conversation or offline state means the dashboard has not found a session for its configured
+folder; make sure you launch it from your actual Jarvis instance, usually `~/Jarvis`.
+
+### Start, attach and stop
+
+```bash
+jarvis office                         # open the dashboard
+jarvis office --attach                # also attach to Claude in this terminal
+jarvis office --no-remote-control     # start without Claude Remote Control
+jarvis office status                  # check the dashboard and background session
+jarvis office restart -- --model opus # restart Claude with different flags
+jarvis office stop                    # stop the dashboard server; Claude keeps running
+jarvis office stop-all                # stop the dashboard server and its Claude tmux session
+```
+
+By default, Claude starts in tmux with Remote Control enabled, so you can also access that session
+through Claude's Remote Control interface. Use `tmux attach -t jarvis` to attach directly in a terminal.
+The installer offers to install tmux, and `jarvis office` checks for it when starting.
+
+The dashboard server binds to `127.0.0.1` and uses a per-run token. Remote Control is a separate Claude
+feature; the local dashboard itself is not exposed to the network. Close any open dashboard tabs when
+finished: stopping the server does not close browser tabs or stop an already-loaded animation.
+
+Claude flags can be passed after `--`. `--dangerously-skip-permissions` disables Claude's permission
+prompts and therefore its dashboard approval cards; quick-command confirmation remains a separate
+interface control.
 
 ## Routines
 
@@ -245,7 +326,9 @@ Hermes also brings its own dashboard (`hermes dashboard`: usage, sessions, cron)
 
 ## Platform
 
-macOS only for now (Apple Silicon). Everything runs natively on your Mac; no Docker, no server.
+macOS only for now (Apple Silicon). Jarvis runs natively on your Mac with no Docker or separately
+hosted server to manage. The optional dashboard starts a local Node server; model requests and
+connected services use their respective providers.
 
 ## Repo layout
 
