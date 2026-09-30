@@ -311,6 +311,17 @@ body.ops-mode{--bg:#0d0d0f;--surface:#111113;--ink:#e8e1df;--ink-2:#a3999d;--lin
 .cmd-confirm-actions{display:flex;justify-content:flex-end;gap:10px}
 .cmd-confirm button:focus-visible{outline:2px solid #dfb8c6;outline-offset:3px}
 .hud-cmds button:disabled{opacity:.5;cursor:wait}
+/* The handle overlays the border, leaving the full panel width for conversation. */
+.panel{position:relative;min-width:0}
+#chat-resizer{display:none}
+@media(min-width:901px){
+  body main,body.ops-mode main{grid-template-columns:minmax(0,1fr) var(--chat-width,320px)}
+  #chat-resizer{display:block;position:absolute;left:-5px;top:0;bottom:0;width:10px;z-index:5;cursor:col-resize;touch-action:none;outline:none}
+  #chat-resizer::after{content:"";position:absolute;left:4px;top:0;bottom:0;width:2px;background:transparent;transition:background .15s}
+  #chat-resizer::before{content:"";position:absolute;left:3px;top:45%;width:4px;height:36px;border-radius:3px;background:var(--ink-2);opacity:.45}
+  #chat-resizer:hover::after,#chat-resizer:focus-visible::after,body.resizing-chat #chat-resizer::after{background:var(--accent)}
+  body.resizing-chat,body.resizing-chat *{cursor:col-resize!important;user-select:none!important}
+}
 </style>
 </head>
 <body>
@@ -329,7 +340,8 @@ body.ops-mode{--bg:#0d0d0f;--surface:#111113;--ink:#e8e1df;--ink-2:#a3999d;--lin
     <div class="perms" id="perms"></div>
     <div id="view"></div>
   </section>
-  <aside class="panel" aria-label="Conversation">
+  <aside class="panel" id="conversation-panel" aria-label="Conversation">
+    <div id="chat-resizer" role="separator" tabindex="0" aria-label="Resize conversation panel" aria-orientation="vertical" aria-controls="conversation-panel" title="Drag to resize chat · arrow keys to adjust · double-click to reset"></div>
     <div class="head"><h2 id="p-title">Jarvis</h2><div class="sub" id="p-sub"></div></div>
     <div class="actions" id="actions"></div>
     <div class="log" id="log"></div>
@@ -375,6 +387,45 @@ let state = null, selected = "jarvis", view = "ops";
 try { view = localStorage.getItem("office-view") === "office" ? "office" : "ops"; } catch {}
 
 const $ = (id) => document.getElementById(id);
+// Persist the requested width separately so a temporarily smaller window doesn't overwrite it.
+(() => {
+  const handle = $("chat-resizer"), panel = $("conversation-panel");
+  let preferred = 320, pointer = null;
+  try { const saved = Number(localStorage.getItem("jarvis-chat-width")); if (saved >= 260 && Number.isFinite(saved)) preferred = saved; } catch {}
+  const limits = () => ({ min: 260, max: Math.max(260, Math.min(800, window.innerWidth - 640)) });
+  function apply(width, save = false) {
+    const { min, max } = limits();
+    const value = Math.round(Math.max(min, Math.min(max, width)));
+    document.documentElement.style.setProperty("--chat-width", `${value}px`);
+    handle.setAttribute("aria-valuemin", min);
+    handle.setAttribute("aria-valuemax", max);
+    handle.setAttribute("aria-valuenow", value);
+    handle.setAttribute("aria-valuetext", `Chat width ${value} pixels`);
+    if (save) { preferred = value; try { localStorage.setItem("jarvis-chat-width", value); } catch {} }
+  }
+  handle.addEventListener("pointerdown", e => {
+    if (e.button !== 0 || window.innerWidth <= 900) return;
+    e.preventDefault(); pointer = e.pointerId; handle.focus(); handle.setPointerCapture(pointer);
+    document.body.classList.add("resizing-chat");
+  });
+  handle.addEventListener("pointermove", e => {
+    if (e.pointerId === pointer) apply(panel.getBoundingClientRect().right - e.clientX, true);
+  });
+  const finish = () => { pointer = null; document.body.classList.remove("resizing-chat"); };
+  handle.addEventListener("pointerup", finish);
+  handle.addEventListener("pointercancel", finish);
+  handle.addEventListener("lostpointercapture", finish);
+  handle.addEventListener("dblclick", () => apply(320, true));
+  handle.addEventListener("keydown", e => {
+    const width = panel.getBoundingClientRect().width, step = e.shiftKey ? 50 : 20;
+    const values = { ArrowLeft: width + step, ArrowRight: width - step, Home: limits().min, End: limits().max };
+    if (!(e.key in values)) return;
+    e.preventDefault(); apply(values[e.key], true);
+  });
+  window.addEventListener("resize", () => { if (window.innerWidth <= 900) finish(); apply(preferred); });
+  apply(preferred);
+})();
+
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const md = (s) => esc(s).split(/```[a-z]*\n?/).map((part, i) => i % 2
   ? `<pre class="block">${part.replace(/\n$/, "")}</pre>`
