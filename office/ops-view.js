@@ -1,7 +1,7 @@
 // Jarvis Office · Ops view: a command-centre HUD over the numbers in state.ops (see ops.mjs).
 // API: OpsView.mount(el, { send }) · OpsView.update(state)
 (() => {
-  let root, send, state = null, orb, t = 0;
+  let root, send, state = null, orb, t = 0, paused = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
   const money = (n) => `$${(n || 0).toFixed(n >= 100 ? 0 : 2)}`;
   const big = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n || 0);
@@ -30,7 +30,7 @@
         <span class="hud-plan" id="h-plan"></span></div>
       <div class="hud-grid">
         ${panel("h-core", "Core overview", `<ul class="hud-list" id="h-core-list"></ul>`)}
-        <section class="hud-orb"><canvas id="h-orb" width="520" height="340"></canvas><div class="hud-orb-text"><b>JARVIS</b><span id="h-orb-sub">AI CORE</span></div></section>
+        <section class="hud-orb" aria-label="Jarvis particle core"><div class="core-caption">NEURAL INTERFACE <span>01 / JARVIS</span></div><canvas id="h-orb" aria-hidden="true"></canvas><div class="hud-orb-text"><span class="core-eyebrow">YOUR PERSONAL INTELLIGENCE</span><b>JARVIS</b><span id="h-orb-sub">CONNECTING</span><button class="core-motion" id="h-motion" aria-pressed="${paused}">${paused ? "Resume motion" : "Pause motion"}</button></div></section>
         ${panel("h-feed", `Live feed <span class="live">LIVE</span>`, `<ul class="hud-feed" id="h-feed-list"></ul>`)}
         ${panel("h-cost", "Tokens &amp; cost", `<div id="h-cost-body"></div>`, "wide")}
         ${panel("h-agents", "Agents", `<div class="hud-agents" id="h-agents-list"></div>`)}
@@ -46,38 +46,74 @@
       catch (err) { note.textContent = err.message; }
     });
     orb = root.querySelector("#h-orb").getContext("2d");
+    root.querySelector("#h-motion").onclick = (e) => {
+      paused = !paused;
+      e.target.textContent = paused ? "Resume motion" : "Pause motion";
+      e.target.setAttribute("aria-pressed", paused);
+    };
+    drawOrb();
   }
 
-  // ---------- the core orb ----------
+  // Seeded volume and local edges are built once; perspective and depth shading run per frame.
+  let seed = 73;
+  const random = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
+  const particles = Array.from({ length: 1000 }, () => {
+    const y = random() * 2 - 1, angle = random() * Math.PI * 2;
+    const radius = Math.cbrt(random()) * 155, ring = Math.sqrt(1 - y * y);
+    return { x: Math.cos(angle) * ring * radius, y: y * radius, z: Math.sin(angle) * ring * radius, size: random() };
+  });
+  const edges = [];
+  for (let i = 0; i < particles.length; i++) for (let j = i + 1; j < particles.length; j++) {
+    const a = particles[i], b = particles[j];
+    if (Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z) < 32) edges.push([i, j]);
+  }
   function drawOrb() {
     if (!orb) return;
-    const W = 520, H = 340, cx = W / 2, cy = H / 2, R = 118, working = state?.main?.state === "working";
-    orb.clearRect(0, 0, W, H);
-    const glow = orb.createRadialGradient(cx, cy, 10, cx, cy, R * 1.6);
-    glow.addColorStop(0, working ? "rgba(90,240,200,.35)" : "rgba(70,190,255,.28)"); glow.addColorStop(1, "rgba(10,30,60,0)");
+    const canvas = orb.canvas, W = canvas.clientWidth, H = canvas.clientHeight;
+    if (!W || !H) return;
+    const dpr = Math.min(devicePixelRatio || 1, 2);
+    if (canvas.width !== Math.round(W * dpr) || canvas.height !== Math.round(H * dpr)) {
+      canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
+    }
+    orb.setTransform(dpr, 0, 0, dpr, 0, 0); orb.clearRect(0, 0, W, H);
+    const working = state?.main?.state === "working", asking = state?.screen?.asking;
+    const color = asking ? "237,178,115" : working ? "233,157,184" : "202,126,151";
+    const cx = W / 2, cy = H * .43, scale = Math.min(W / 430, H / 490);
+    const angle = t * .003, c = Math.cos(angle), s = Math.sin(angle);
+    const glow = orb.createRadialGradient(cx, cy, 0, cx, cy, 225 * scale);
+    glow.addColorStop(0, `rgba(${color},.13)`); glow.addColorStop(.5, `rgba(${color},.045)`); glow.addColorStop(1, `rgba(${color},0)`);
     orb.fillStyle = glow; orb.fillRect(0, 0, W, H);
-    // orbit rings
-    orb.strokeStyle = "rgba(90,200,255,.25)"; orb.lineWidth = 1;
-    for (const [rx, ry, rot] of [[R * 1.75, R * 0.42, -0.12], [R * 1.5, R * 0.3, 0.18]]) {
-      orb.beginPath(); orb.ellipse(cx, cy, rx, ry, rot, 0, Math.PI * 2); orb.stroke();
-      const a = t * (working ? 0.03 : 0.012) * (rot > 0 ? 1 : -1);
-      const x = cx + rx * Math.cos(a) * Math.cos(rot) - ry * Math.sin(a) * Math.sin(rot), y = cy + rx * Math.cos(a) * Math.sin(rot) + ry * Math.sin(a) * Math.cos(rot);
-      orb.fillStyle = "#9FE8FF"; orb.beginPath(); orb.arc(x, y, 2.5, 0, Math.PI * 2); orb.fill();
+    // A perspective floor grounds the suspended volume.
+    const horizon = H * .73;
+    orb.lineWidth = .6; orb.strokeStyle = "rgba(189,131,149,.12)";
+    for (let i = -12; i <= 12; i++) {
+      orb.beginPath(); orb.moveTo(cx + i * 17 * scale, horizon); orb.lineTo(cx + i * 85 * scale, H); orb.stroke();
     }
-    // sphere of points (latitude / longitude), slowly rotating
-    const spin = t * (working ? 0.02 : 0.007);
-    for (let lat = -80; lat <= 80; lat += 10) for (let lon = 0; lon < 360; lon += 10) {
-      const la = (lat * Math.PI) / 180, lo = (lon * Math.PI) / 180 + spin;
-      const x = Math.cos(la) * Math.sin(lo), y = Math.sin(la), z = Math.cos(la) * Math.cos(lo);
-      if (z < -0.2) continue;
-      const a = 0.25 + 0.75 * ((z + 0.2) / 1.2);
-      orb.fillStyle = `rgba(${working ? "120,255,210" : "120,210,255"},${a * 0.9})`;
-      orb.fillRect(cx + x * R, cy + y * R * 0.98, z > 0.6 ? 2 : 1.4, z > 0.6 ? 2 : 1.4);
+    for (let i = 0; i < 13; i++) {
+      const y = horizon + (H - horizon) * Math.pow(i / 12, 2);
+      orb.beginPath(); orb.moveTo(0, y); orb.lineTo(W, y); orb.stroke();
     }
-    orb.strokeStyle = working ? "rgba(120,255,210,.55)" : "rgba(120,210,255,.45)"; orb.lineWidth = 1.2;
-    orb.beginPath(); orb.arc(cx, cy, R + 2, 0, Math.PI * 2); orb.stroke();
-    // base platform
-    for (let i = 0; i < 3; i++) { orb.strokeStyle = `rgba(90,200,255,${0.35 - i * 0.1})`; orb.beginPath(); orb.ellipse(cx, cy + R + 26 + i * 6, 120 + i * 30, 12 + i * 4, 0, 0, Math.PI * 2); orb.stroke(); }
+    const breath = 1 + Math.sin(t * .022) * (working ? .055 : .018);
+    const projected = particles.map(p => {
+      const x = p.x * c + p.z * s, z = p.z * c - p.x * s;
+      const y = p.y * .96 - z * .27, depth = z * .96 + p.y * .27;
+      const perspective = 470 / (470 - depth);
+      return { x: cx + x * perspective * scale * breath, y: cy + y * perspective * scale * breath,
+        depth, a: .18 + (depth + 160) / 320 * .7, r: (.45 + p.size * 1.15) * perspective * scale };
+    });
+    for (const [i, j] of edges) {
+      const a = projected[i], b = projected[j];
+      orb.strokeStyle = `rgba(${color},${Math.min(a.a, b.a) * .23})`;
+      orb.beginPath(); orb.moveTo(a.x, a.y); orb.lineTo(b.x, b.y); orb.stroke();
+    }
+    projected.sort((a, b) => a.depth - b.depth);
+    for (const p of projected) {
+      if (p.depth > 35 && p.r > 1.2) {
+        orb.fillStyle = `rgba(${color},.035)`; orb.beginPath(); orb.arc(p.x, p.y, p.r * 3, 0, Math.PI * 2); orb.fill();
+      }
+      orb.fillStyle = `rgba(${p.depth > 80 ? "255,219,230" : color},${p.a})`;
+      orb.beginPath(); orb.arc(p.x, p.y, p.r, 0, Math.PI * 2); orb.fill();
+    }
   }
 
   // ---------- panels ----------
@@ -90,7 +126,7 @@
     const sys = o.system, ok = sys.cpu < 90 && sys.mem < 92;
     root.querySelector("#h-status b").textContent = ok ? "OPTIMAL" : "UNDER LOAD";
     root.querySelector("#h-status").classList.toggle("warn", !ok);
-    root.querySelector("#h-orb-sub").textContent = `AI CORE · ${mainLabel.toUpperCase()}`;
+    root.querySelector("#h-orb-sub").textContent = `CLAUDE CODE · ${mainLabel.toUpperCase()}`;
     root.querySelector("#h-plan").innerHTML = o.plan
       ? `<span>5H <b>${o.plan.fiveHour ?? "–"}%</b></span><span>WEEK <b>${o.plan.week ?? "–"}%</b></span>` : `<span class="dim">Plan usage: open the Claude app to track it</span>`;
 
@@ -163,5 +199,9 @@
     mount(el, opts) { root = el; send = opts.send; layout(); clock(); if (state) render(); },
     update(s) { state = s; if (root?.querySelector(".hud")) render(); },
   };
-  setInterval(() => { t++; if (root?.isConnected && root.querySelector(".hud")) { drawOrb(); if (t % 25 === 0) clock(); } }, 40);
+  setInterval(() => {
+    if (document.hidden || !root?.isConnected || !root.querySelector(".hud")) return;
+    if (!paused) t += state?.main?.state === "working" ? 1.8 : 1;
+    drawOrb(); clock();
+  }, 40);
 })();
