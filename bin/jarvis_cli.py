@@ -6,7 +6,7 @@
     jarvis doctor                          what's installed where, and what's detected on this Mac
     jarvis schedule ...                    run scheduled jobs from another runtime (see `jarvis schedule -h`)
     jarvis setup hermes [--voice]          optional: Hermes as the always-on home (Telegram, cron, voice)
-    jarvis office [stop|status|restart]    dashboard: watch Jarvis and its sub-agents, type and approve from the browser
+    jarvis office [stop|status|restart]    dashboard: Jarvis runs in the background (Remote Control on); --attach to open it here
                                            (flags for Claude after --, e.g. jarvis office -- --model opus)
     jarvis mcp                             run the Jarvis MCP server on stdio (what harnesses launch)
 
@@ -600,10 +600,12 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
         print("! Without tmux the dashboard can watch and approve but not type (brew install tmux).\n"
               "  Start Claude as usual: cd", root, "&& claude")
         return
-    if action == "restart":
-        subprocess.run([tm, "kill-session", "-t", "jarvis"], capture_output=True)
+    dead = subprocess.run([tm, "display-message", "-p", "-t", "jarvis", "#{pane_dead}"], capture_output=True, text=True).stdout.strip() == "1"
+    shell_only = subprocess.run([tm, "display-message", "-p", "-t", "jarvis", "#{pane_current_command}"], capture_output=True, text=True).stdout.strip() in ("zsh", "bash", "sh", "fish")
+    if action == "restart" or dead or shell_only:
+        subprocess.run([tm, "kill-session", "-t", "jarvis"], capture_output=True)       # Claude had exited: start it again
     if subprocess.run([tm, "has-session", "-t", "jarvis"], capture_output=True).returncode == 0:
-        if claude_args:
+        if claude_args and claude_args != ["--remote-control"]:
             print("! Claude is already running in the office session, so these flags weren't applied:",
                   " ".join(claude_args), "\n  Restart it with them: jarvis office restart --", " ".join(claude_args))
     else:
@@ -644,7 +646,8 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     if attach and sys.stdin.isatty():
         print("Opening the session here. Detach with Ctrl-b then d (Claude keeps running).")
         os.execv(tm, [tm, "attach", "-t", "jarvis"])
-    print(f"Open the session in a terminal any time: {tm} attach -t jarvis")
+    print("Jarvis is running in the background" + (" with Remote Control (claude.ai/code or the Claude app)" if "--remote-control" in claude_args else "") + ".")
+    print(f"Chat in the dashboard, or open the terminal session any time: {tm} attach -t jarvis   (leave with Ctrl-b then d)")
 
 
 def main() -> None:
@@ -672,7 +675,9 @@ def main() -> None:
                    help="start Claude with --dangerously-skip-permissions (no prompts at all)")
     p.add_argument("--port", type=int, default=3777)
     p.add_argument("--no-approvals", dest="approvals", action="store_false", help="don't answer permission prompts from the dashboard")
-    p.add_argument("--no-attach", dest="attach", action="store_false", help="don't open the session in this terminal")
+    p.add_argument("--attach", action="store_true", help="also open the Claude session in this terminal (tmux)")
+    p.add_argument("--no-attach", dest="attach", action="store_false", help=argparse.SUPPRESS)
+    p.add_argument("--no-remote-control", dest="remote", action="store_false", help="don't start Claude with Remote Control")
     p.add_argument("--new", action="store_true", help="start a new conversation instead of continuing the last one")
     sub.add_parser("mcp", help="run the MCP server on stdio")
     p = sub.add_parser("schedule", help="scheduled jobs from another runtime")
@@ -709,7 +714,7 @@ def main() -> None:
     elif a.cmd == "setup":
         os.execv("/bin/zsh", ["/bin/zsh", str(REPO / "adapters" / a.runtime / "setup.sh"), *a.rest])
     elif a.cmd == "office":
-        extra = (["--dangerously-skip-permissions"] if a.skip else []) + passthrough
+        extra = (["--remote-control"] if a.remote and "--remote-control" not in passthrough else []) + (["--dangerously-skip-permissions"] if a.skip else []) + passthrough
         office(a.action, a.port, a.approvals and not a.skip, a.attach, extra, a.new)
     elif a.cmd == "mcp":
         os.execv(MCP_CMD[0], MCP_CMD)

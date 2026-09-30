@@ -71,7 +71,7 @@ try. Anything you skip is saved and offered again later ("finish onboarding").
 ## Office dashboard
 
 ```bash
-jarvis office          # in your Jarvis folder: opens the dashboard and your Claude session
+jarvis office          # in your Jarvis folder: opens the dashboard; Jarvis runs in the background
 ```
 
 A local dashboard (http://127.0.0.1:3777) for the Claude session in your Jarvis folder. You can switch
@@ -85,8 +85,9 @@ services are online, plus quick commands that type into your session.
 
 - **Click anyone** to read their live conversation: Jarvis's chat, or exactly what the researcher is
   searching for right now.
-- **Type from the dashboard or the terminal.** It's the same session: `jarvis office` runs Claude inside
-  tmux, and the dashboard types into it. Messages to a sub-agent go through Jarvis.
+- **Type from the dashboard, the terminal or your phone.** It's the same session: `jarvis office` runs Claude
+  in the background (tmux) with Remote Control on, and the dashboard types into it. `--attach` also opens it
+  in your terminal; `--no-remote-control` turns Remote Control off. Messages to a sub-agent go through Jarvis.
 - **Approve from either side.** Permission prompts appear as Allow / Deny cards; answer there or in the
   terminal, and the other one clears. Pickers and prompts (onboarding questions, folder trust) show in a
   live terminal mirror with arrow, Space and Enter buttons.

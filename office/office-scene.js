@@ -37,9 +37,11 @@
   SEATS.push({ seg: [16.6, 3.0, 2.5, 1.05], owner: null, kind: "L", side: [18.2, 4.05, 0.9, 1.7] });
   const JARVIS_DESK = [7.6, 10.0, 3.2, 1.4];
   const AISLE_X = 12.4;
+  const PANTRY_WALK_Y = 1.85;
+  const PANTRY_SPOTS = [[14.75, 1.3], [16.2, 1.3], [15.0, 2.55], [16.05, 2.6]];   // machine, counter, high table ×2
   const PLACES = {
-    pantry: { at: [15.6, 1.35], via: [[AISLE_X, 1.35]] },
-    wc: { at: [19.0, 0.6], via: [[AISLE_X, 1.1], [19.0, 1.1]], hidden: true },
+    pantry: { at: PANTRY_SPOTS[0] },
+    wc: { at: [19.0, 0.6], hidden: true },
   };
 
   let host, canvas, ctx, overlay, onSelect, state = null, selected = "jarvis", dpr = 1, scale = 1;
@@ -124,8 +126,8 @@
     const d = new Date(), ha = ((d.getHours() % 12) + d.getMinutes() / 60) / 12 * Math.PI * 2, ma = (d.getMinutes() + d.getSeconds() / 60) / 60 * Math.PI * 2;
     ctx.strokeStyle = "#333"; ctx.lineWidth = 2.2; ctx.beginPath(); ctx.moveTo(ck.x, ck.y); ctx.lineTo(ck.x + Math.sin(ha) * 6, ck.y - Math.cos(ha) * 6); ctx.stroke();
     ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(ck.x, ck.y); ctx.lineTo(ck.x + Math.sin(ma) * 10, ck.y - Math.cos(ma) * 10); ctx.stroke();
-    poly(onWall(14.3, 2.6, 110, 126), "#2C3E66");
-    alongX(14.45, 0, 124, () => { ctx.fillStyle = "#E8A838"; ctx.font = "800 10px ui-monospace, Menlo, monospace"; ctx.fillText("PANTRY", 8, 11); });
+    poly(onWall(14.6, 1.8, 124, 138), "#2C3E66");
+    alongX(14.72, 0, 136, () => { ctx.fillStyle = "#E8A838"; ctx.font = "800 10px ui-monospace, Menlo, monospace"; ctx.fillText("PANTRY", 8, 11); });
     poly(onWall(18.3, 1.5, 0, 114), "#FFFFFF");
     if (now < wcDoorUntil && wcDoorUntil !== Infinity) {                      // door open: a dark doorway and the door swung in
       poly(onWall(18.4, 1.3, 0, 108), "#3B3029");
@@ -150,11 +152,13 @@
     }
     soft(() => { poly([p(0, 0), p(W, 0), p(W, 0.4), p(0.4, 0.4)], "rgba(120,70,30,.2)"); poly([p(0, 0), p(0.4, 0.4), p(0.4, D), p(0, D)], "rgba(120,70,30,.2)"); }, 8);
     if (day.night < 0.2) soft(() => poly([p(0.1, 3.0), p(3.4, 3.6), p(3.4, 13.6), p(0.1, 13.0)], "rgba(255,250,225,.24)"), 6);
+    // pantry floor: cream and white tiles
+    for (let gx = 13; gx < 18; gx++) for (let gy = 0; gy < 3; gy++) poly([p(gx, gy), p(gx + 1, gy), p(gx + 1, gy + 1), p(gx, gy + 1)], (gx + gy) % 2 ? "#FFF8EE" : "#F1E6D6", "rgba(150,120,90,.18)");
     // rugs: teal under Jarvis, a soft pink runner along the aisle
     poly([p(6.4, 9.2), p(12.0, 9.2), p(12.0, 13.4), p(6.4, 13.4)], "#40BFB4");
     poly([p(6.7, 9.5), p(11.7, 9.5), p(11.7, 13.1), p(6.7, 13.1)], null, "rgba(255,255,255,.9)", 2);
     for (let i = 0; i < 7; i++) { const q = p(6.9 + i * 0.78, 13.28); circle(q.x, q.y, 2.5, "#FFD166"); }
-    poly([p(AISLE_X - 0.45, 1.8), p(AISLE_X + 0.45, 1.8), p(AISLE_X + 0.45, 8.6), p(AISLE_X - 0.45, 8.6)], "rgba(246,166,193,.55)");
+    poly([p(AISLE_X - 0.45, 3.0), p(AISLE_X + 0.45, 3.0), p(AISLE_X + 0.45, 8.6), p(AISLE_X - 0.45, 8.6)], "rgba(246,166,193,.55)");
   }
 
   // Small v1-size board: a title, three columns with counts and coloured notes. Click for the tasks.
@@ -190,7 +194,7 @@
     ctx.fillStyle = "rgba(255,255,255,.16)"; ctx.beginPath(); ctx.moveTo(b.x - w / 2, b.y - 32); ctx.lineTo(b.x - w / 2 + 9, b.y - 32); ctx.lineTo(b.x - w / 2, b.y - 19); ctx.fill();
   }
   // A mug big enough to read when someone carries it (size 1 on desks, bigger in hand).
-  function bigMug(x, y) { ctx.save(); ctx.translate(x, y); ctx.scale(1.8, 1.8); ctx.translate(-x, -y); mug(x, y, "#FF8A3D", true); ctx.restore(); }
+  function bigMug(x, y, empty) { ctx.save(); ctx.translate(x, y); ctx.scale(1.8, 1.8); ctx.translate(-x, -y); mug(x, y, empty ? "#F4F6F8" : "#FF8A3D", !empty); ctx.restore(); }
   function mug(x, y, color, steam) {
     rr(x - 4, y - 9, 8, 9, 2, color, "rgba(0,0,0,.25)"); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(x + 5, y - 5, 2.5, -1.2, 1.2); ctx.stroke();
     if (steam) { ctx.strokeStyle = "rgba(255,255,255,.8)"; ctx.lineWidth = 1.4; for (let i = 0; i < 2; i++) { const o = Math.sin(now / 300 + i) * 2; ctx.beginPath(); ctx.moveTo(x - 1 + i * 3, y - 11); ctx.quadraticCurveTo(x + o + i * 3, y - 16, x - 1 + i * 3, y - 21); ctx.stroke(); } }
@@ -226,15 +230,40 @@
         poly([up(p(gx + 0.7, y0), 20 + r * 26), up(p(gx + 0.7, y0), 20 + r * 26 + h), up(p(gx + 0.7, y0 + 0.2), 20 + r * 26 + h), up(p(gx + 0.7, y0 + 0.2), 20 + r * 26)], colors[(i * 3 + r) % colors.length]); }
     }
   }
-  function pantry(gx, gy) {
-    shadow(gx, gy, 2.2, 0.75, 0.1, 0.16);
-    box(gx, gy, 2.2, 0.75, 36, "#FFFFFF"); box(gx, gy, 2.2, 0.75, 3, "#E6C9A8", 36);
-    const m = up(p(gx + 0.4, gy + 0.32), 39); rr(m.x - 11, m.y - 26, 22, 26, 4, "#E26D6D"); rr(m.x - 7, m.y - 22, 14, 7, 2, "#2B3240"); circle(m.x + 4, m.y - 19, 1.5, "#6FE3C1");
-    const c2 = up(p(gx + 0.85, gy + 0.5), 39); mug(c2.x, c2.y, "#FFD166", true);
-    const c3 = up(p(gx + 1.05, gy + 0.35), 39); mug(c3.x, c3.y, "#FFFFFF", false);
-    const bowl = up(p(gx + 1.55, gy + 0.4), 39); ellipse(bowl.x, bowl.y - 2, 9, 4, "#F4A261"); circle(bowl.x - 3, bowl.y - 5, 3, "#E63946"); circle(bowl.x + 3, bowl.y - 5, 3, "#FFD166");
-    const fr = gx + 2.3; shadow(fr, gy, 0.8, 0.75, 0.08, 0.14); box(fr, gy, 0.8, 0.75, 88, "#F4F6F8");
-    const h1 = up(p(fr + 0.8, gy + 0.2), 72), h2 = up(p(fr + 0.8, gy + 0.2), 46); ctx.strokeStyle = "#AAB4BE"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(h1.x, h1.y); ctx.lineTo(h2.x, h2.y); ctx.stroke();
+  function pantry() {
+    // counter along the back wall with a sink, coffee machine, kettle, mugs and a fruit bowl; wall cabinets above;
+    // a tall fridge; a round high table with two stools; a pendant lamp
+    const gx = 14.0, gy = 0.12, cw = 2.9, cd = 0.78;
+    shadow(gx, gy, cw, cd, 0.1, 0.16);
+    box(gx, gy, cw, cd, 36, "#FFFFFF");
+    box(gx, gy, cw, cd, 4, "#D9B48A", 36);                                   // wood worktop
+    for (let i = 0; i < 3; i++) { const dx = gx + 0.1 + i * 0.95; poly([up(p(dx, gy + cd), 30), up(p(dx + 0.85, gy + cd), 30), up(p(dx + 0.85, gy + cd), 6), up(p(dx, gy + cd), 6)], null, "rgba(0,0,0,.12)"); const h = up(p(dx + 0.42, gy + cd), 26); rr(h.x - 5, h.y - 1, 10, 2, 1, "#AAB4BE"); }
+    const top = (fx, fy) => up(p(gx + cw * fx, gy + cd * fy), 40);
+    // sink and tap
+    poly([top(0.62, 0.25), top(0.8, 0.25), top(0.8, 0.75), top(0.62, 0.75)], "#C9D1DA", "rgba(0,0,0,.15)");
+    const tap = top(0.71, 0.2); ctx.strokeStyle = "#AAB4BE"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(tap.x, tap.y); ctx.lineTo(tap.x, tap.y - 12); ctx.lineTo(tap.x + 6, tap.y - 10); ctx.stroke();
+    // coffee machine with a glowing button, a kettle, mugs, fruit
+    const m = top(0.14, 0.4); rr(m.x - 12, m.y - 28, 24, 28, 5, "#E26D6D"); rr(m.x - 8, m.y - 24, 16, 8, 2, "#2B3240"); circle(m.x + 5, m.y - 20, 1.6, Math.floor(now / 800) % 2 ? "#6FE3C1" : "#3FB38F"); rr(m.x - 5, m.y - 10, 10, 3, 1, "#2B3240");
+    const k = top(0.33, 0.45); ellipse(k.x, k.y - 1, 7, 2.5, "#444"); rr(k.x - 6, k.y - 14, 12, 13, 5, "#F4F6F8", "rgba(0,0,0,.2)"); rr(k.x - 2, k.y - 17, 4, 3, 1, "#333");
+    ["#FFD166", "#7CC8FF", "#FF8FB1"].forEach((c, i) => { const q = top(0.45 + i * 0.05, 0.62); mug(q.x, q.y, c, false); });
+    const b = top(0.92, 0.45); ellipse(b.x, b.y - 2, 10, 4, "#F4A261"); circle(b.x - 4, b.y - 5, 3.2, "#E63946"); circle(b.x + 3, b.y - 6, 3.2, "#FFD166"); circle(b.x, b.y - 8, 3, "#5BC27A");
+    // wall cabinets and a backsplash
+    poly(onWall(gx, cw, 40, 60), "#F7F3EC");
+    for (let i = 0; i < 4; i++) { const cx = gx + 0.05 + i * 0.72; poly(onWall(cx, 0.68, 84, 118), "#FFFFFF", "rgba(0,0,0,.12)"); const hq = up(p(cx + 0.58, 0), 90); rr(hq.x - 1, hq.y - 6, 2, 6, 1, "#AAB4BE"); }
+    // fridge
+    const fr = gx + cw + 0.1; shadow(fr, gy, 0.85, 0.78, 0.08, 0.14); box(fr, gy, 0.85, 0.78, 96, "#F4F6F8");
+    const h1 = up(p(fr + 0.85, gy + 0.2), 80), h2 = up(p(fr + 0.85, gy + 0.2), 50); ctx.strokeStyle = "#AAB4BE"; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(h1.x, h1.y); ctx.lineTo(h2.x, h2.y); ctx.stroke();
+    const mag = up(p(fr + 0.85, gy + 0.55), 76); rr(mag.x - 4, mag.y - 4, 8, 6, 1, "#FFD166"); rr(mag.x - 3, mag.y + 5, 6, 5, 1, "#7CC8FF");
+  }
+  function pantryTable() {
+    const c = p(15.55, 2.55);
+    soft(() => ellipse(c.x, c.y + 3, 30, 11, "rgba(70,40,20,.2)"), 5);
+    rr(c.x - 2, c.y - 34, 4, 34, 2, "#6B5A50"); ellipse(c.x, c.y, 10, 3.5, "#6B5A50");
+    ellipse(c.x, c.y - 36, 24, 11, "#C9955F"); ellipse(c.x, c.y - 38, 24, 11, "#E0B07A");
+    const q = { x: c.x + 6, y: c.y - 38 }; mug(q.x, q.y, "#FFFFFF", false);
+  }
+  function stool(gx, gy) {
+    const q = p(gx, gy); ellipse(q.x, q.y, 7, 2.5, "rgba(70,40,20,.2)"); rr(q.x - 1.5, q.y - 22, 3, 22, 1.5, "#6B5A50"); ellipse(q.x, q.y - 23, 9, 4, "#40BFB4"); ellipse(q.x, q.y - 24, 9, 4, "#5CD0C4");
   }
   function cooler(gx, gy) {
     shadow(gx, gy, 0.7, 0.7, 0.1, 0.16); box(gx, gy, 0.7, 0.7, 46, "#F1F4F8");
@@ -302,7 +331,9 @@
     poly([top(0.5, 0.56), top(0.7, 0.56), top(0.7, 0.76), top(0.5, 0.76)], "#FFFFFF", "rgba(0,0,0,.2)");
     if (occupant) {
       const m = top(0.86, 0.72), act = actors[occupant.id];
-      if (act && now < act.mugUntil && act.phase === "desk" && now > act.sipUntil) bigMug(m.x, m.y); else mug(m.x, m.y, accent, false);
+      if (act && now < act.mugUntil && act.phase === "desk" && now > act.sipUntil) bigMug(m.x, m.y);
+      else if (act && act.emptyMug) bigMug(m.x, m.y, true);
+      else mug(m.x, m.y, accent, false);
       DECO[occupant.type]?.(top);
       alongX(gx + w * 0.08, gy + d, H - 9, () => {                 // nameplate on the front edge
         rr(0, -8, 46, 9.5, 2.5, "#FFFFFF", "rgba(0,0,0,.2)"); rr(0, -8, 3.5, 9.5, 2, accent);
@@ -328,7 +359,7 @@
   function person(x, y, look, pose, id) {
     ctx.save(); ctx.translate(x, y); ctx.scale(P_SCALE, P_SCALE); ctx.translate(-x, -y);
     const T = now / 1000, seat = pose.startsWith("sit"), outline = "rgba(40,25,20,.38)";
-    const walking = pose.startsWith("walk"), back = pose.includes("back"), coffee = pose.endsWith("coffee");
+    const walking = pose.startsWith("walk"), back = pose.includes("back"), cup = pose.endsWith("-cup"), coffee = pose.endsWith("coffee") || cup;   // "back-stand": facing away
     const bob = pose === "sit-type" ? Math.sin(T * 14) * 0.6 : pose === "stretch" ? -2 - Math.sin(T * 3) * 1.5 : walking ? Math.abs(Math.sin(T * 11)) * -1.5 : Math.sin(T * 2 + x) * 0.6;
     const by = y + bob;
     if (!seat) {
@@ -351,12 +382,12 @@
     else if (walking) { const sw = Math.sin(T * 11) * 5; hands = [[x - 15, bodyTop + 23 + sw], coffee ? [x + 13, bodyTop + 12] : [x + 15, bodyTop + 23 - sw]]; }
     else hands = [[x - 15, bodyTop + 24], [x + 15, bodyTop + 24]];
     const behind = pose === "stretch" || pose === "wave" || back;
-    if (behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (coffee && back) bigMug(hands[1][0] + 3, hands[1][1] + 4); }
+    if (behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (coffee && back) bigMug(hands[1][0] + 3, hands[1][1] + 4, cup); }
     const sg = ctx.createLinearGradient(x - 14, 0, x + 14, 0); sg.addColorStop(0, mix(look.shirt, 0.2)); sg.addColorStop(1, mix(look.shirt, -0.18));
     rr(x - 14, bodyTop, 28, 30, 11, sg, outline);
     if (!back) { ctx.fillStyle = "#FFFFFF"; ctx.beginPath(); ctx.moveTo(x - 5, bodyTop + 1); ctx.lineTo(x, bodyTop + 7); ctx.lineTo(x + 5, bodyTop + 1); ctx.fill(); }
     if (look.tie && !back) { ctx.fillStyle = look.tie; ctx.beginPath(); ctx.moveTo(x - 2.5, bodyTop + 6); ctx.lineTo(x + 2.5, bodyTop + 6); ctx.lineTo(x + 3.5, bodyTop + 20); ctx.lineTo(x, bodyTop + 24); ctx.lineTo(x - 3.5, bodyTop + 20); ctx.fill(); }
-    if (!behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (pose === "sip" || pose === "sit-sip" || coffee) bigMug(hands[1][0] + 4, hands[1][1] + 8); }
+    if (!behind) { arm(sL, ...hands[0], mix(look.shirt, 0.05)); arm(sR, ...hands[1], mix(look.shirt, -0.1)); if (pose === "sip" || pose === "sit-sip" || coffee) bigMug(hands[1][0] + 4, hands[1][1] + 8, cup); }
     const tilt = pose === "sit-think" ? 0.14 : pose === "look" ? Math.sin(T * 1.3) * 0.2 : pose === "stretch" ? -0.08 : 0;
     const hx = x + tilt * 16, hy = bodyTop - 16;
     ctx.save(); ctx.translate(hx, hy); ctx.rotate(tilt * 0.6);
@@ -416,28 +447,52 @@
   const JARVIS_STAND = [JARVIS_DESK[0] + JARVIS_DESK[2] * 0.55, JARVIS_DESK[1] + JARVIS_DESK[3] + 0.5];
 
   const FAST = /[?&]fast\b/.test(location.search) ? 8 : 1;          // ?fast speeds up idle life, for demos
-  const rnd = (id, n) => { let h = 7; for (const ch of id + ":" + n) h = (h * 31 + ch.charCodeAt(0)) | 0; return ((h >>> 0) % 10000) / 10000; };
-  function routeTo(from, place) {
-    const out = [[from[0], from[1]]];
-    if (from[0] < AISLE_X - 0.3) out.push([AISLE_X, from[1]]);
-    return [...out.slice(1), ...PLACES[place].via, PLACES[place].at];
+  const rnd = (id, n) => {                                          // FNV-1a + a mixing step: a fresh roll every time
+    let h = 2166136261; for (const ch of id + ":" + n) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+    h ^= h >>> 16; h = Math.imul(h, 2246822507); h ^= h >>> 13; h = Math.imul(h, 3266489909); h ^= h >>> 16;
+    return (h >>> 0) / 4294967296;
+  };
+  function routeTo(from, place, spot) {
+    const out = [];
+    if (from[0] < AISLE_X - 0.3) out.push([AISLE_X, from[1]], [AISLE_X, PANTRY_WALK_Y]);
+    else out.push([from[0], PANTRY_WALK_Y]);
+    const at = place === "pantry" ? PANTRY_SPOTS[spot] : PLACES.wc.at;
+    return [...out, [at[0], PANTRY_WALK_Y], at];
   }
+  function freePantrySpot() {
+    const used = new Set(Object.values(actors).filter((x) => x.place === "pantry" && x.phase !== "desk").map((x) => x.spot));
+    const order = [0, 2, 1, 3].filter((i) => !used.has(i));
+    return order.length ? order[0] : null;
+  }
+  let lastTrip = 0;                                                 // someone goes every couple of minutes, taking turns
   function stepActor(id, standG, mode, dt, canTrip) {
-    const a = actors[id] ||= { phase: "desk", n: 0, until: now + (20000 + rnd(id, 0) * 60000) / FAST, stretchUntil: 0, pos: null, route: [], place: null, coffee: false, mugUntil: 0, sipUntil: 0, nextSip: 0 };
+    const a = actors[id] ||= { phase: "desk", n: 0, until: now + (15000 + rnd(id, 0) * 75000) / FAST, stretchUntil: 0, pos: null, route: [], place: null, coffee: false, mugUntil: 0, sipUntil: 0, nextSip: 0 };
     const busy = mode === "working" || mode === "asking";
     if (a.phase === "desk") {
       if (busy || now < a.until) return a;
       a.n++; const r = rnd(id, a.n);
       // One decision a minute or so: a trip about every 5 minutes (pantry ~8 min, restroom ~15 min), a stretch
       // now and then, otherwise stay put. No second coffee while the first one is still on the desk.
-      const wantsCoffee = r < 0.14 && now > a.mugUntil;
-      if (canTrip && (wantsCoffee || (r >= 0.14 && r < 0.22))) { a.place = wantsCoffee ? "pantry" : "wc"; a.phase = "out"; a.pos = [...standG]; a.route = routeTo(standG, a.place); a.coffee = false; if (a.place === "wc") wcDoorUntil = Infinity; }
-      else if (r >= 0.22 && r < (canTrip ? 0.34 : 0.3)) { a.stretchUntil = now + 3000; a.until = now + 3000 + (45000 + rnd(id, a.n + 1) * 45000) / FAST; }
+      // Turn-taking: if nobody has gone for ~2 minutes, whoever decides next and hasn't been lately goes.
+      const overdue = now - lastTrip > 120000 / FAST && now - (a.lastTrip || 0) > 240000 / FAST;
+      if (a.mugUntil && now > a.mugUntil) { a.emptyMug = true; a.mugUntil = 0; }   // coffee finished: an empty mug waits on the desk
+      const coffeeOk = now > a.mugUntil && freePantrySpot() !== null;
+      let place = null;
+      const dishes = a.emptyMug ? 0.1 : 0;                           // an empty mug makes a pantry trip more likely
+      if (canTrip === "coffee") place = coffeeOk && (r < 0.06 + dishes || overdue && r < 0.25) ? "pantry" : null;
+      else if (canTrip) place = coffeeOk && (r < 0.14 + dishes || overdue && r < 0.7) ? "pantry" : (r >= 0.14 + dishes && r < 0.22 + dishes) ? "wc" : null;
+      if (place) {
+        a.place = place; a.spot = place === "pantry" ? freePantrySpot() : null; a.phase = "out"; a.pos = [...standG];
+        a.route = routeTo(standG, place, a.spot); a.coffee = false; a.lastTrip = lastTrip = now;
+        a.carryEmpty = place === "pantry" && a.emptyMug; if (a.carryEmpty) a.emptyMug = false;
+        if (place === "wc") wcDoorUntil = Infinity;
+      }
+      else if (r >= 0.22 && r < (canTrip === true ? 0.34 : 0.3)) { a.stretchUntil = now + 3000; a.until = now + 3000 + (45000 + rnd(id, a.n + 1) * 45000) / FAST; }
       else a.until = now + (45000 + rnd(id, a.n + 2) * 45000) / FAST;
       return a;
     }
     if (a.phase === "at") {
-      if (busy || now > a.stayUntil) { if (a.place === "wc") wcDoorUntil = now + 1400; a.phase = "back"; a.coffee = a.place === "pantry"; a.route = routeTo(standG, a.place).reverse().slice(1).concat([standG]); }
+      if (busy || now > a.stayUntil) { if (a.place === "wc") wcDoorUntil = now + 1400; a.phase = "back"; a.coffee = a.place === "pantry"; a.route = routeTo(standG, a.place, a.spot).reverse().slice(1).concat([standG]); }
       return a;
     }
     if (busy && a.phase === "out") { a.phase = "back"; a.route = [[a.pos[0], standG[1]], standG]; }
@@ -448,10 +503,10 @@
       else { a.pos = [a.pos[0] + (dx / dist) * step, a.pos[1] + (dy / dist) * step]; a.dir = dx + dy; step = 0; }
     }
     if (!a.route.length) {
-      if (a.phase === "out") { a.phase = "at"; a.stayUntil = now + (a.place === "wc" ? 9000 : 6000) / Math.min(FAST, 2); if (a.place === "wc") wcDoorUntil = now + 1400; }
+      if (a.phase === "out") { a.carryEmpty = false; a.phase = "at"; a.stayUntil = now + (a.place === "wc" ? 9000 : a.spot >= 2 ? 11000 : 7000) / Math.min(FAST, 2); if (a.place === "wc") wcDoorUntil = now + 1400; }
       else {
         if (a.coffee) { a.mugUntil = now + 8 * 60000 / FAST; a.nextSip = now + 4000; }      // the mug goes on the desk
-        a.phase = "desk"; a.coffee = false; a.until = now + (45000 + rnd(id, a.n + 3) * 45000) / FAST;
+        a.phase = "desk"; a.coffee = false; a.place = null; a.until = now + (45000 + rnd(id, a.n + 3) * 45000) / FAST;
       }
     }
     return a;
@@ -461,8 +516,8 @@
   function placement(a, mode, doing, seat, stand) {
     if (mode === "working") return { g: seat, pose: /thinking/.test(doing || "") ? "sit-think" : "sit-type" };
     if (a.phase !== "desk") {
-      if (a.phase === "at") return a.place === "wc" ? { hidden: true } : { g: a.pos, pose: "sip" };
-      return { g: a.pos, pose: (a.dir < 0 ? "walk-back" : "walk") + (a.coffee ? "-coffee" : "") };
+      if (a.phase === "at") return a.place === "wc" ? { hidden: true } : { g: a.pos, pose: a.spot === 0 && now < a.stayUntil - 3500 ? "back-stand" : (a.spot >= 2 && Math.floor(now / 2500) % 3 === 0 ? "look" : "sip") };
+      return { g: a.pos, pose: (a.dir < 0 ? "walk-back" : "walk") + (a.coffee ? "-coffee" : a.carryEmpty ? "-cup" : "") };
     }
     if (mode === "asking") return { g: stand, pose: "wave" };
     if (now < a.stretchUntil) return { g: stand, pose: "stretch" };
@@ -486,10 +541,13 @@
     const items = [
       { depth: 20.5, fn: () => plant(19.2, 0.4) },
       { depth: 33.0, fn: () => plant(19.2, 13.0, true) },
-      { depth: 16.4, fn: () => pantry(14.3, 0.15) },
+      { depth: 15.2, fn: () => pantry() },
+      { depth: 16.9, fn: () => stool(15.0, 2.1) },
+      { depth: 18.1, fn: () => pantryTable() },
+      { depth: 18.9, fn: () => stool(16.2, 2.95) },
       { depth: 24.0, fn: () => cooler(19.2, 4.4) },
       { depth: 25.6, fn: () => printer(19.0, 6.0) },
-      { depth: 22.9, fn: () => brain(12.3, 10.2, state?.desks?.find((d) => d.type === "librarian")?.latest?.state === "working") },
+      { depth: 22.9, fn: () => brain(10.95, 10.25, state?.desks?.find((d) => d.type === "librarian")?.latest?.state === "working") },
       { depth: 23.4, fn: () => meetingChairs(14.3, 9.2, 3.4, 1.6, false) },
       { depth: 24.5, fn: () => meetingTable(14.3, 9.2, 3.4, 1.6) },
       { depth: 26.5, fn: () => meetingChairs(14.3, 9.2, 3.4, 1.6, true) },
@@ -511,7 +569,7 @@
       items.push({ depth: pl.g[0] + pl.g[1], fn: () => { heads[o.id] = person(q.x, q.y + (sit ? 6 : 0), o.look, pl.pose, o.id); } });
     });
     // Jarvis
-    const js = state?.main, jm = modeOf("jarvis", js), ja = stepActor("jarvis", JARVIS_STAND, jm, dt, false), jp = placement(ja, jm, js?.doing, JARVIS_SEAT, JARVIS_STAND);
+    const js = state?.main, jm = modeOf("jarvis", js), ja = stepActor("jarvis", JARVIS_STAND, jm, dt, "coffee"), jp = placement(ja, jm, js?.doing, JARVIS_SEAT, JARVIS_STAND);
     const jseat = p(...JARVIS_SEAT);
     items.push({ depth: JARVIS_SEAT[0] + JARVIS_SEAT[1] - 0.05, fn: () => chair(jseat.x, jseat.y + 10, "#3A2A20") });
     items.push({ depth: JARVIS_DESK[0] + JARVIS_DESK[2] / 2 + JARVIS_DESK[1] + JARVIS_DESK[3] / 2, fn: () => jarvisDesk(jm) });
@@ -519,7 +577,7 @@
     items.sort((a, b) => a.depth - b.depth).forEach((it) => it.fn());
     if (day.night) {
       ctx.fillStyle = `rgba(20,24,60,${day.night})`; ctx.fillRect(0, 0, CW, CH);
-      for (const [gx, gy] of [[4, 3.6], [9, 3.6], [15, 4.5], [4, 7.4], [9, 7.4], [9.2, 11.6], [15.8, 10.2]]) {
+      for (const [gx, gy] of [[4, 3.6], [9, 3.6], [15, 4.5], [4, 7.4], [9, 7.4], [9.2, 11.6], [15.8, 10.2], [15.5, 1.8]]) {
         const q = p(gx, gy), g = ctx.createRadialGradient(q.x, q.y - 40, 5, q.x, q.y, 150);
         g.addColorStop(0, `rgba(255,214,150,${day.warm + 0.06})`); g.addColorStop(1, "rgba(255,214,150,0)"); ctx.fillStyle = g; ctx.fillRect(q.x - 160, q.y - 190, 320, 300);
       }
@@ -539,7 +597,7 @@
     };
     for (const o of occupants()) add(o.id, o.label[0].toUpperCase() + o.label.slice(1), seatG(o.i), modeOf(o.id, o.s), o.s?.doing);
     add("jarvis", "Jarvis · main session", JARVIS_SEAT, modeOf("jarvis", state.main), state.main?.doing);
-    const b = p(12.8, 10.7);
+    const b = p(11.45, 10.75);
     out.push(`<button class="po-hit ${selected === "brain" ? "sel" : ""}" data-id="brain" aria-label="The Brain" style="left:${(b.x - 30) * scale}px;top:${(b.y - 90) * scale}px;width:${60 * scale}px;height:${94 * scale}px"><span class="po-name">The Brain · your vault</span></button>`);
     const k0 = up(p(4.1, 0), 128), k1 = up(p(7.4, 0), 62);
     out.push(`<button class="po-hit po-board ${selected === "board" ? "sel" : ""}" data-id="board" aria-label="Task board" style="left:${k0.x * scale}px;top:${k0.y * scale}px;width:${(k1.x - k0.x) * scale}px;height:${(k1.y - k0.y) * scale}px"><span class="po-name">Task board · click to open</span></button>`);
