@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import tempfile
@@ -208,6 +209,30 @@ class SpaceTests(unittest.TestCase):
         vault.write('work/twiss/clients/brightlabs/projects/site.md', '# Site\nlaunch plan')
         hits = vault.search('launch plan', space='work/twiss/clients/nomi')
         self.assertEqual([h['path'] for h in hits], ['work/twiss/clients/nomi/projects/app.md'])
+
+
+    def test_dev_folder_holds_code_outside_the_knowledge_base(self):
+        base = self.root / 'work/twiss/clients/brightlabs'
+        self.assertTrue((base / 'dev').is_dir())
+        self.assertFalse((self.root / 'work/twiss/dev').exists())          # companies don't get one
+        out = vault.dev_new('work/twiss/clients/brightlabs', 'Website')
+        repo = base / 'dev/website'
+        self.assertTrue((repo / '.git').exists(), out)
+        (repo / 'README.md').write_text('# Website\nSECRET-CODE-MARKER Brightlabs launch plan')
+        (repo / 'node_modules/pkg').mkdir(parents=True)
+        (repo / 'node_modules/pkg/notes.md').write_text('SECRET-CODE-MARKER')
+        self.assertEqual(vault.search('SECRET-CODE-MARKER'), [])
+        for call in (lambda: vault.read('work/twiss/clients/brightlabs/dev/website/README.md'),
+                     lambda: vault.write('work/twiss/clients/brightlabs/dev/website/x.md', 'x')):
+            with self.assertRaises(vault.VaultError):
+                call()
+        vault.write('work/twiss/clients/brightlabs/projects/site.md', '# Site\nlaunch plan')
+        self.assertNotIn('dev/', (base / 'index.md').read_text())
+        recall._rescan(self.root)
+        self.assertNotIn('SECRET-CODE-MARKER', recall.recall_text('Website for Brightlabs') or '')
+        self.assertIn('website', vault.space_check('work/twiss/clients/brightlabs')['dev_repos_not_shared'])
+        app = json.loads((self.root / '.obsidian/app.json').read_text())
+        self.assertIn('work/twiss/clients/brightlabs/dev/', app['userIgnoreFilters'])
 
 
 class ScheduleTests(unittest.TestCase):

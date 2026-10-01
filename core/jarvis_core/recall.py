@@ -19,7 +19,7 @@ import re
 import time
 from pathlib import Path
 
-from .vault import PRIVATE, resolve, VaultError, is_private
+from .vault import PRIVATE, resolve, VaultError, is_private, walk
 
 NOW_LIMIT = 1800          # characters of now.md injected on the first turn
 EXCERPT_LIMIT = 320       # characters per matched page
@@ -104,7 +104,7 @@ def _rescan(root: Path) -> None:
         base = root / sub
         if not base.exists():
             continue
-        for page in base.rglob("*.md"):
+        for page in walk(base, {".md"}):        # skips hidden folders and every client's dev/ (code)
             try:
                 page = resolve(page.relative_to(root).as_posix())
                 text = page.read_text(errors="ignore")

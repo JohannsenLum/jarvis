@@ -14,6 +14,9 @@ Rules enforced here (see knowledge/SCHEMA.md):
   its own `raw/` (write-once), `log.md` (every change in it) and `index.md` (generated). Pages in a space
   shouldn't link outside it, so the folder can one day be shared on its own without leaking anything else;
   writes that do get a warning, and `space_check` reports what would leak.
+- A client or project space has a `dev/` folder for code: each project inside it is its own git repo.
+  dev/ is not part of the knowledge base: never indexed, searched, recalled, synced or shared, and the
+  vault tools don't read or write it (coding tools do).
 """
 from __future__ import annotations
 
@@ -23,6 +26,7 @@ import fcntl
 import json
 import os
 import re
+import subprocess
 import tempfile
 from pathlib import Path
 
@@ -64,6 +68,30 @@ def resolve(rel: str) -> Path:
     if any(part.startswith(".") for part in path.relative_to(root).parts):
         raise VaultError(f"'{rel}' is a hidden path; hidden files aren't part of the vault.")
     return path
+
+
+DEV_DIR = "dev"
+SKIP_DIRS = {"node_modules", "__pycache__"}
+
+
+def walk(base: Path, suffixes: set[str] | None = None):
+    """Files under `base`, skipping hidden folders, dependency folders, symlinks and each space's dev/."""
+    for dirpath, dirnames, filenames in os.walk(base):
+        here = Path(dirpath)
+        dirnames[:] = sorted(d for d in dirnames if not d.startswith(".") and d not in SKIP_DIRS
+                             and not (d == DEV_DIR and (here / "SPACE.md").is_file()))
+        for name in sorted(filenames):
+            p = here / name
+            if name.startswith(".") or p.is_symlink() or (suffixes and p.suffix.lower() not in suffixes):
+                continue
+            yield p
+
+
+def in_dev(rel: str) -> bool:
+    """Is this path inside a space's dev/ folder (code, not knowledge)?"""
+    root = config.vault().resolve()
+    parts = Path(rel.strip("/")).parts
+    return any(parts[i] == DEV_DIR and (root.joinpath(*parts[:i]) / "SPACE.md").is_file() for i in range(1, len(parts)))
 
 
 def rel_of(path: Path) -> str:
@@ -126,8 +154,14 @@ def _one_line(text: str, limit: int = 300) -> str:
     return re.sub(r"\s+", " ", str(text or "")).strip()[:limit]
 
 
+DEV_MESSAGE = ("is in a client's dev/ folder: code lives there in its own git repos, outside the knowledge base. "
+               "Use your coding tools for it; the vault tools don't read or write it.")
+
+
 def read(rel: str, max_chars: int = 20_000, allow_private: bool = False) -> str:
     path = resolve(rel)
+    if in_dev(rel):
+        raise VaultError(f"'{rel}' {DEV_MESSAGE}")
     rel = path.relative_to(config.vault().resolve()).as_posix() if path != config.vault().resolve() else ""
     if rel and is_private(rel) and not allow_private:
         raise VaultError(f"'{rel}' is in a private area. Open it with jarvis_read_private, which asks the user first, "
@@ -165,6 +199,8 @@ def write(rel: str, content: str, mode: str = "create", reason: str = "") -> str
         raise VaultError("mode must be create, replace or append.")
     path = resolve(rel)
     rel = path.relative_to(config.vault().resolve()).as_posix()
+    if in_dev(rel):
+        raise VaultError(f"'{rel}' {DEV_MESSAGE}")
     # macOS volumes are commonly case-insensitive; protect both spellings on every OS.
     policy = rel.casefold()
     if path.suffix.lower() not in TEXT_SUFFIXES:
@@ -272,9 +308,7 @@ def search(query: str, limit: int = 10, space: str = "") -> list[dict]:
     if not terms:
         return []
     results = []
-    for path in root.rglob("*"):
-        if not path.is_file() or path.suffix.lower() not in TEXT_SUFFIXES:
-            continue
+    for path in walk(root, TEXT_SUFFIXES):
         try:
             resolve(path.relative_to(root).as_posix())
             rel = rel_of(path)
@@ -397,15 +431,18 @@ def _space_pages(space: str) -> tuple[list[Path], list[str]]:
     root = config.vault().resolve()
     base = root / space
     pages, nested = [], []
-    for path in sorted(base.rglob("*")):
-        rel = path.relative_to(root).as_posix()
-        if any(part.startswith(".") for part in path.relative_to(base).parts) or path.is_symlink():
-            continue
-        owner = space_of(rel if path.is_dir() else str(Path(rel).parent))
-        if path.is_dir() and owner == rel and rel != space:
-            nested.append(rel)
-        elif path.is_file() and path.suffix.lower() == ".md" and owner == space:
-            pages.append(path)
+    for dirpath, dirnames, filenames in os.walk(base):
+        here = Path(dirpath)
+        keep = []
+        for d in sorted(dirnames):
+            if d.startswith(".") or d in SKIP_DIRS or (d == DEV_DIR and (here / SPACE_FILE).is_file()) or (here / d).is_symlink():
+                continue
+            if (here / d / SPACE_FILE).is_file():
+                nested.append((here / d).relative_to(root).as_posix())   # its pages belong to it
+                continue
+            keep.append(d)
+        dirnames[:] = keep
+        pages += [here / n for n in sorted(filenames) if n.endswith(".md") and not n.startswith(".") and not (here / n).is_symlink()]
     return pages, nested
 
 
@@ -430,7 +467,7 @@ def _space_index(space: str) -> None:
         lines += ["", "## Spaces inside this one"] + [f"- [[{n[len(space) + 1:]}/index|{_space_meta(n).get('name') or n.split('/')[-1]}]]" for n in nested]
     raw = root / space / "raw"
     if raw.is_dir():
-        n = sum(1 for p in raw.rglob("*") if p.is_file() and not p.name.startswith("."))
+        n = sum(1 for _ in walk(raw))
         lines += ["", f"_{n} source file(s) in raw/._"]
     _atomic_write(root / space / "index.md", "\n".join(lines) + "\n")
 
@@ -464,7 +501,7 @@ def _outside_links(space: str, content: str) -> list[str]:
         key = t.casefold().removesuffix(".md")
         if key in inside or key.startswith(space.casefold() + "/"):
             continue
-        hit = next((p for p in root.rglob("*.md") if key in _page_keys(p, root) and not any(x.startswith(".") for x in p.relative_to(root).parts)), None)
+        hit = next((p for p in walk(root, {".md"}) if key in _page_keys(p, root)), None)
         if hit:
             out.append(hit.relative_to(root).as_posix())
     return sorted(set(out))
@@ -493,7 +530,9 @@ def space_create(path: str, kind: str = "client", name: str = "", sharing: str =
                 "Rules, so this folder can be shared on its own one day:\n"
                 "- Facts about this " + kind + " go here, nowhere else. Link only to pages inside this folder.\n"
                 "- Nothing personal: no notes about the user's own life, health, money or private relationships.\n"
-                "- Contacts at this " + kind + " get a page in `contacts/`.\n")
+                "- Contacts at this " + kind + " get a page in `contacts/`.\n"
+                + ("- Code goes in `dev/`: each project its own git repo. dev/ isn't part of this knowledge base and is never\n"
+                   "  indexed, searched, synced or shared with it.\n" if kind in ("client", "project") else ""))
             made.append(SPACE_FILE)
         if not (folder / "overview.md").exists():
             (folder / "overview.md").write_text(f"---\ntype: {kind}\nstatus: active\nupdated: {today()}\n---\n# {name}\n\n**In one line:**\n")
@@ -506,6 +545,15 @@ def space_create(path: str, kind: str = "client", name: str = "", sharing: str =
         if not (folder / "log.md").exists():
             _space_log(rel, "space created", "create")
             made.append("log.md")
+        if kind in ("client", "project") and not (folder / DEV_DIR).exists():
+            (folder / DEV_DIR).mkdir()
+            (folder / DEV_DIR / "README.md").write_text(
+                f"# Code for {name}\n\nEach project here is its own git repo (`git init` or `git clone` inside a subfolder).\n"
+                "This folder isn't part of the knowledge base: Jarvis doesn't index, search, sync or share it,\n"
+                "and the Jarvis folder's own git ignores it.\n")
+            made.append("dev/")
+        if kind in ("client", "project"):
+            _obsidian_ignore(f"{rel}/{DEV_DIR}/")
         _space_index(rel)
         parent = space_of(str(Path(rel).parent)) if "/" in rel else None
         if parent:
@@ -517,10 +565,8 @@ def space_create(path: str, kind: str = "client", name: str = "", sharing: str =
 def space_list() -> list[dict]:
     root = config.vault().resolve()
     out = []
-    for manifest in sorted(root.rglob(SPACE_FILE)):
+    for manifest in (p for p in walk(root) if p.name == SPACE_FILE):
         rel = manifest.parent.relative_to(root).as_posix()
-        if any(part.startswith(".") for part in manifest.relative_to(root).parts):
-            continue
         meta = _space_meta(rel)
         pages, nested = _space_pages(rel)
         content = [p for p in pages if p.name not in ("index.md", "log.md", SPACE_FILE) and "raw" not in p.relative_to(manifest.parent).parts]
@@ -556,5 +602,47 @@ def space_check(path: str) -> dict:
     for part in ("overview.md", "log.md", "raw"):
         if not (root / rel / part).exists():
             report["missing"].append(part)
+    dev = root / rel / DEV_DIR
+    if dev.is_dir():
+        report["dev_repos_not_shared"] = sorted(p.name for p in dev.iterdir() if p.is_dir() and not p.name.startswith("."))
     report["ok_to_share"] = not (report["links_outside"] or report["mentions_personal_contacts"])
     return report
+
+
+
+def _obsidian_ignore(prefix: str) -> None:
+    """Hide a folder from Obsidian (Settings → Files and links → Excluded files) without touching anything else."""
+    path = config.vault().resolve() / ".obsidian" / "app.json"
+    try:
+        data = json.loads(path.read_text()) if path.exists() else {}
+    except (OSError, ValueError):
+        return                                            # don't rewrite a settings file we can't read
+    filters = data.get("userIgnoreFilters") or []
+    if prefix not in filters:
+        data["userIgnoreFilters"] = filters + [prefix]
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write(path, json.dumps(data, indent=2) + "\n")
+
+
+def dev_new(space: str, name: str) -> str:
+    """A new project repo in a client's dev/: dev/<name> with its own git repository."""
+    root = config.vault().resolve()
+    rel = resolve(space).relative_to(root).as_posix()
+    if space_of(rel) != rel or _space_meta(rel).get("kind") not in ("client", "project"):
+        raise VaultError(f"{rel} isn't a client or project space. Make it one first (jarvis_space create).")
+    slug = re.sub(r"[^a-z0-9._-]+", "-", name.lower()).strip("-.")
+    if not slug:
+        raise VaultError("Give the project a name, e.g. website or mobile-app.")
+    target = root / rel / DEV_DIR / slug
+    if target.exists():
+        return f"{rel}/{DEV_DIR}/{slug} already exists. Open it with your coding tools (full path: {target})."
+    (root / rel / DEV_DIR).mkdir(exist_ok=True)
+    target.mkdir()
+    ok = subprocess.run(["git", "init", "-q", "-b", "main"], cwd=target, capture_output=True).returncode == 0
+    _obsidian_ignore(f"{rel}/{DEV_DIR}/")
+    with _locked():
+        _space_log(rel, f"dev/{slug}: new project repo", "create")
+        _log_line(f"{rel}/dev/{slug}: new project repo", "create")
+    return (f"Created {target}" + (" with its own git repo." if ok else " (git isn't available, so run `git init` there yourself).")
+            + " It stays out of the knowledge base. To use an existing repo instead, `git clone <url>` inside "
+            f"{root / rel / DEV_DIR}.")

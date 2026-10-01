@@ -55,6 +55,9 @@ Rules, so a client's folder can be shared on its own later without leaking anyth
 3. Nothing personal in a space: no notes about the user's own life, health, money or private
    relationships. Work contacts get a page in the space's `contacts/`, not in `relationships/`.
 4. A company space contains its client spaces; sharing a client shares only that client.
+5. Code goes in the client's `dev/`: each project is its own git repo (`jarvis_space` action dev makes
+   one, or `git clone` inside dev/). dev/ is not part of the knowledge base: it's never indexed, searched,
+   synced or shared, the Jarvis folder's git ignores it, and Obsidian hides it.
 Make a folder a space with `jarvis_space` (action create; safe on an existing folder). `jarvis_space`
 action check lists what would leak if it were shared.
 

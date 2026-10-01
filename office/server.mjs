@@ -177,7 +177,8 @@ function vaultGraph() {
   const walk = (dir, rel = "") => {
     let list = []; try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const d of list) {
-      if (d.name.startsWith(".") || (!rel && ["_templates", "raw"].includes(d.name))) continue;
+      if (d.name.startsWith(".") || (!rel && ["_templates", "raw"].includes(d.name)) || d.name === "node_modules") continue;
+      if (d.isDirectory() && d.name === "dev" && fs.existsSync(path.join(dir, "SPACE.md"))) continue;   // a client's code, not knowledge
       const r = rel + d.name;
       if (d.isDirectory()) walk(path.join(dir, d.name), r + "/");
       else if (d.isFile() && d.name.endsWith(".md") && nodes.length < 3000) {

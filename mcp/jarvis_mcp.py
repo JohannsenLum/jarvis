@@ -55,11 +55,12 @@ TOOLS = {
                         mode=_str("create | replace | append (default create).", enum=["create", "replace", "append"]),
                         reason=_str("One line for log.md, e.g. 'Brightlabs wants Q1 rebrand (chat 2026-09-29)'."))),
     "jarvis_space": ("Company and client knowledge bases. Each company and client folder is its own space: its own pages, raw/ sources, log and generated index, with no links outside it, so it can be shared on its own later. "
-                     "action=create makes a folder a space (safe on an existing folder), list shows them all, check reports what would leak if it were shared.",
-                     _s("", action=_str("create | list | check", True, enum=["create", "list", "check"]),
+                     "action=create makes a folder a space (safe on an existing folder), list shows them all, check reports what would leak if it were shared, "
+                     "dev makes a new project repo in a client's dev/ folder (code lives there in its own git repo, outside the knowledge base).",
+                     _s("", action=_str("create | list | check | dev", True, enum=["create", "list", "check", "dev"]),
                         path=_str("The folder, e.g. work/acme or work/acme/clients/brightlabs (create, check)."),
                         kind=_str("company | client | project | team (create; default client).", enum=["company", "client", "project", "team"]),
-                        name=_str("Display name (create), e.g. Brightlabs."))),
+                        name=_str("Display name (create), e.g. Brightlabs; or the project name (dev), e.g. website."))),
     "jarvis_history": ("List the saved earlier versions of a page (kept automatically before every change).",
                        _s("", path=_str("Path relative to the vault.", True))),
     "jarvis_restore": ("Undo changes to a page: put back an earlier version (the latest saved one unless a version is given). The current text is saved first, so this can be undone too.",
@@ -104,6 +105,8 @@ def call(name: str, args: dict) -> str:
             return vault.space_create(args["path"], args.get("kind") or "client", args.get("name") or "")
         if action == "check":
             return json.dumps(vault.space_check(args["path"]), indent=2, ensure_ascii=False)
+        if action == "dev":
+            return vault.dev_new(args["path"], args.get("name") or "")
         raise vault.VaultError("action must be create, list or check.")
     if name == "jarvis_history":
         versions = vault.history(args["path"])

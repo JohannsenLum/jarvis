@@ -188,7 +188,7 @@ async function main() {
 
   // 3. Your folder, your private git repo
   fs.writeFileSync(path.join(dir, ".gitignore"),
-    "# Private Jarvis folder. Keep any remote PRIVATE: your vault is in here.\n.env\n.DS_Store\n**/__pycache__/\n.jarvis/logs/\nknowledge/.history/\nknowledge/.jarvis.lock\n.obsidian/workspace*.json\n");
+    "# Private Jarvis folder. Keep any remote PRIVATE: your vault is in here.\n.env\n.DS_Store\n**/__pycache__/\n.jarvis/logs/\nknowledge/.history/\nknowledge/.jarvis.lock\nknowledge/**/dev/\n.obsidian/workspace*.json\n");
   if (args.git) {
     spawnSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
     spawnSync("git", ["add", "-A"], { cwd: dir });

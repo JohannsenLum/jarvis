@@ -220,6 +220,14 @@ def render_instance(quiet: bool = False) -> None:
     """
     root = config.instance_root()
     lock_down(root, root / "knowledge", root / ".jarvis", config.home())   # existing folders too, on every render/update
+    gi = root / ".gitignore"                                   # client code in dev/ has its own repos
+    try:
+        lines = gi.read_text().splitlines() if gi.exists() else []
+        missing = [x for x in ("knowledge/**/dev/", "knowledge/.history/", "knowledge/.jarvis.lock", ".jarvis/logs/") if x not in lines]
+        if missing:
+            gi.write_text("\n".join(lines + missing) + "\n")
+    except OSError:
+        pass
     text = identity.render().read_text()
     identity.write_block(root / "AGENTS.md", text)            # Codex, Grok Build, OpenClaw, DeepSeek, Cursor…
     identity.write_block(root / "CLAUDE.md", "@AGENTS.md")     # Claude Code

@@ -114,7 +114,8 @@ function vaultStats(vault) {
     let list = [];
     try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
     for (const d of list) {
-      if (d.name.startsWith(".") || ["_templates", "raw", "inbox"].includes(d.name) && !rel) continue;
+      if (d.name.startsWith(".") || ["_templates", "raw", "inbox"].includes(d.name) && !rel || d.name === "node_modules") continue;
+      if (d.isDirectory() && d.name === "dev" && fs.existsSync(path.join(dir, "SPACE.md"))) continue;   // a client's code, not knowledge
       if (d.isDirectory()) walk(path.join(dir, d.name), rel + d.name + "/");
       else if (d.isFile() && d.name.endsWith(".md")) pages++;
     }
