@@ -188,7 +188,7 @@ async function main() {
 
   // 3. Your folder, your private git repo
   fs.writeFileSync(path.join(dir, ".gitignore"),
-    "# Private Jarvis folder. Keep any remote PRIVATE: your vault is in here.\n.env\n.DS_Store\n**/__pycache__/\n.obsidian/workspace*.json\n");
+    "# Private Jarvis folder. Keep any remote PRIVATE: your vault is in here.\n.env\n.DS_Store\n**/__pycache__/\n.jarvis/logs/\nknowledge/.history/\nknowledge/.jarvis.lock\n.obsidian/workspace*.json\n");
   if (args.git) {
     spawnSync("git", ["init", "-q", "-b", "main"], { cwd: dir });
     spawnSync("git", ["add", "-A"], { cwd: dir });
@@ -244,7 +244,7 @@ ${gold(bold(`  ${name} is ready.`))}
   Optional:
     Watch Jarvis and its sub-agents work, type and approve from the browser:  ${bold("jarvis office")}
     Always-on (Telegram, scheduled briefings, desk voice) with Hermes:  ${bold("jarvis setup hermes")}
-    Scheduled routines through Claude on this Mac:                     ${bold("jarvis schedule install --runner launchd-claude")}
+    Scheduled routines through Claude on this Mac:                     ${bold("jarvis schedule sync")}
     Jarvis in every folder, not just this one:                         ${bold("jarvis install claude-code --global")}
 `);
 }

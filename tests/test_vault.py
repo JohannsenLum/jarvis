@@ -162,5 +162,49 @@ class PrivacyAndSafetyTests(unittest.TestCase):
         vault.write('me/routines.md', '## Morning briefing: on, 07:30', mode='create')
 
 
+
+class ScheduleTests(unittest.TestCase):
+    """Wave 2: routines come from me/routines.md, with forgiving times and days."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / 'knowledge'
+        (self.root / 'me').mkdir(parents=True)
+        env = patch.dict(os.environ, {'JARVIS_VAULT': str(self.root), 'JARVIS_REPO': str(ROOT), 'JARVIS_HOME': str(Path(self.tmp.name) / 'config')})
+        env.start(); self.addCleanup(env.stop)
+        sys.path.insert(0, str(ROOT / 'bin'))
+        import jarvis_schedule
+        self.s = jarvis_schedule
+
+    def test_times_and_days(self):
+        p, d = self.s.parse_time, self.s.parse_days
+        self.assertEqual(p('7:30am'), (7, 30)); self.assertEqual(p('6pm'), (18, 0)); self.assertEqual(p('07:30'), (7, 30))
+        self.assertEqual(p('12am'), (0, 0)); self.assertIsNone(p('Skip for now')); self.assertIsNone(p('25:00'))
+        self.assertEqual(d('weekdays'), [1, 2, 3, 4, 5]); self.assertEqual(d('Mon-Fri'), [1, 2, 3, 4, 5])
+        self.assertIsNone(d('every day')); self.assertEqual(d('Sunday'), [0]); self.assertEqual(d('Mon, Wed, Fri'), [1, 3, 5])
+        self.assertIs(d('07:30'), False)
+
+    def test_routines_file_controls_what_runs(self):
+        (self.root / 'me/routines.md').write_text('## Morning briefing: on, 7:45am, weekdays\nInclude: calendar\n'
+                                                  '## Weekly review: on, Friday 5pm\n## Nightly memory refresh: on, 01:30\n'
+                                                  '## Nightly tidy-up: off\n## Monthly money check: on, 1st\n')
+        jobs, warnings = self.s.read_routines()
+        self.assertEqual((jobs['morning-briefing']['hour'], jobs['morning-briefing']['minute'], jobs['morning-briefing']['days']), (7, 45, [1, 2, 3, 4, 5]))
+        self.assertIn('calendar', jobs['morning-briefing']['include'])
+        self.assertEqual((jobs['weekly-review']['hour'], jobs['weekly-review']['days']), (17, [5]))
+        self.assertFalse(jobs['lint']['on'])
+        self.assertTrue(any('Monthly money check' in w for w in warnings))
+        plist = self.s.plist_for('morning-briefing', jobs['morning-briefing'], 'launchd-claude', '/usr/local/bin/claude')
+        self.assertEqual(len(plist['StartCalendarInterval']), 5)
+        script = plist['ProgramArguments'][2]
+        self.assertIn('/usr/local/bin/claude', script)
+        self.assertIn('last.json', script)
+        self.assertNotIn('Bash(osascript', script)
+        self.assertIn('--disallowedTools', script)
+
+    def test_claude_code_home_maps_to_launchd(self):
+        self.assertEqual(self.s.HOME_TO_RUNNER['claude-code'], 'launchd-claude')
+
+
 if __name__ == '__main__':
     unittest.main()

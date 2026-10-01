@@ -263,8 +263,8 @@ scan, show, ask, map) and record choices as `queued` in `imports`. The import it
      under Routines, that they run while the app is open (missed ones run on next launch), and suggest
      setting their model to Sonnet 5 there.
    - **Hermes home**: use the cron tool, delivering to their main chat channel.
-   - **Anywhere else**: ask them to run `jarvis schedule install` in a terminal (it picks launchd with
-     Claude Code or Codex, Hermes, or OpenClaw).
+   - **Anywhere else**: ask them to run `jarvis schedule sync` in a terminal. It reads `me/routines.md`
+     and schedules the routines that are on with launchd (Claude Code or Codex), Hermes or OpenClaw.
    Skills: `jarvis-morning-briefing`, `jarvis-weekly-review` (review day 18:00), `brain-consolidate`
    (01:30, silent), `brain-lint` (02:00, silent unless issues).
 5. Set `status: "complete"` (even with pending items) and `completed_at`. Append to `log.md`:

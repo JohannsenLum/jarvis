@@ -195,7 +195,7 @@ actually use it:
 | You use | Routines run as | Turn off, edit, change time |
 |---|---|---|
 | Claude desktop app | Local routines (the app's Routines page) | On the Routines page, or ask Jarvis |
-| Claude Code in the terminal, or Codex | macOS launchd jobs (`jarvis schedule install`) | Content: `me/routines.md`. Times and on/off: re-run `jarvis schedule install` (automatic sync is coming) |
+| Claude Code in the terminal, or Codex | macOS launchd jobs (`jarvis schedule sync`) | Ask Jarvis (it edits `me/routines.md`), then run `jarvis schedule sync`; `jarvis schedule status` shows each last run |
 | Hermes | Hermes cron | Ask Jarvis, or `hermes cron list` |
 
 What each routine covers lives in `knowledge/me/routines.md`, which you can edit in Obsidian or change by

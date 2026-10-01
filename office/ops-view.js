@@ -199,7 +199,7 @@
     const r = o.routines;
     root.querySelector("#h-routines-body").innerHTML = (r.list.length ? `<ul class="hud-rows">${r.list.map((x) => `<li class="${x.on ? "on" : "off"}"><i></i><span>${esc(x.name)}</span><b>${x.on ? esc(x.when || "on") : "off"}</b></li>`).join("")}</ul>`
       : `<p class="hud-note">No routines yet. They're set in onboarding (chapter 4), or say "set up my briefing".</p>`)
-      + (r.launchd.length ? `<p class="hud-note">On this Mac (launchd): ${r.launchd.map((j) => `${esc(j.job)} ${j.lastRun ? "· ran " + ago(j.lastRun) + " ago" : "· not run yet"}`).join(" · ")}</p>` : "")
+      + (r.launchd.length ? `<p class="hud-note">On this Mac (launchd): ${r.launchd.map((j) => `${esc(j.job)} ${j.lastRun ? "· ran " + ago(j.lastRun) + " ago" + (j.ok === false ? " (failed)" : "") : "· not run yet"}`).join(" · ")}</p>` : "")
       + (o.vault?.onboarding && o.vault.onboarding.status !== "complete" ? `<p class="hud-note warn">Onboarding: ${esc(o.vault.onboarding.status)} (${esc(o.vault.onboarding.step || "")})</p>` : "");
 
     const v = o.vault;

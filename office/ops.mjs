@@ -140,7 +140,7 @@ function vaultStats(vault) {
 }
 
 // ---------- routines ----------
-function routines(vault) {
+function routines(vault, root) {
   const list = [];
   try {
     const text = fs.readFileSync(safeFile(vault, "me/routines.md", [".md", ".json"]), "utf8");
@@ -153,9 +153,12 @@ function routines(vault) {
   try {
     launchd = fs.readdirSync(agentsDir).filter((f) => /^ai\.jarvis\..*\.plist$/.test(f) && f !== "ai.jarvis.capslock.plist").map((f) => {
       const job = f.replace(/^ai\.jarvis\.|\.plist$/g, "");
-      let lastRun = null;
-      try { lastRun = fs.statSync(path.join(os.homedir(), ".jarvis", "logs", `${job}.log`)).mtimeMs; } catch { /* never */ }
-      return { job, lastRun };
+      // Each run records how it went in <logs>/<job>.last.json (the Jarvis folder's .jarvis/logs, or ~/.jarvis/logs).
+      let lastRun = null, ok = null;
+      for (const dir of [path.join(root || "", ".jarvis", "logs"), path.join(os.homedir(), ".jarvis", "logs")]) {
+        try { const r = JSON.parse(fs.readFileSync(path.join(dir, `${job}.last.json`), "utf8")); lastRun = r.finished * 1000; ok = r.exit === 0; break; } catch { /* next */ }
+      }
+      return { job, lastRun, ok };
     });
   } catch { /* none */ }
   return { list, launchd };
@@ -212,7 +215,7 @@ export function ops({ sessions, agents, vault, root }) {
     plan: planUsage(),
     activity: activity(sessions.filter((s) => s.mtime >= todayStart), agents, todayStart),
     vault: vaultStats(vault),
-    routines: vault ? routines(vault) : { list: [], launchd: [] },
+    routines: vault ? routines(vault, root) : { list: [], launchd: [] },
     system: system(),
     mcp: (() => { try { return Object.keys(JSON.parse(fs.readFileSync(path.join(root, ".mcp.json"), "utf8")).mcpServers || {}); } catch { return []; } })(),
     at: now,
