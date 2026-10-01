@@ -17,7 +17,11 @@ metadata:
   skip step 1 and cite the conversation date instead.
 
 ## Procedure
-1. **File the source.** Save the original under `raw/YYYY/MM/<slug>.<ext>` (web pages as markdown with
+0. **Find its home.** If the source is about one client or company, everything goes into that space
+   (`jarvis_space` list; create the space if it's new). Its `raw/` holds the source and its pages hold
+   the facts. Don't link out of a space: copy facts in with their source instead.
+1. **File the source.** Save the original under `raw/YYYY/MM/<slug>.<ext>` (inside the client's space
+   when it's about a client) (web pages as markdown with
    the URL and fetch date at the top). Never edit a file in `raw/` after this.
 2. **Read it and list what it touches.** People, clients, projects, decisions, goals, life areas.
 3. **Update existing pages first.** Search `index.md` and the vault before creating anything. Add the
@@ -25,7 +29,8 @@ metadata:
 4. **Create pages only for genuinely new things**, from `_templates/`. Link them both ways.
 5. **Flag contradictions.** If the source disagrees with a page, keep both, mark the line
    `⚠️ conflicts with [[other]] (source A vs source B)` and tell the user.
-6. Update `index.md` (one line per new page) and append to `log.md`:
+6. Inside a space, its `index.md` and `log.md` update themselves. Elsewhere, update `index.md` (one line
+   per new page) and append to `log.md`:
    `## [YYYY-MM-DD] ingest | <source title> → <pages touched>`
 7. Reply in one or two lines: what you filed and which pages changed.
 

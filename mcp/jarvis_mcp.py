@@ -44,7 +44,8 @@ TOOLS = {
     "jarvis_recall": ("Vault notes about the people, clients, projects and goals named in a message. Returns nothing when nothing matches.",
                       _s("", message=_str("The user's message, verbatim.", True))),
     "jarvis_search": ("Search the vault by words in file names and contents, best matches first. Private areas (health, money, people, journal, declarations, deal cards) return the path only.",
-                      _s("", query=_str("Words to find.", True), limit={"type": "integer", "description": "Max results (default 10)."})),
+                      _s("", query=_str("Words to find.", True), limit={"type": "integer", "description": "Max results (default 10)."},
+                         space=_str("Only search inside this space (a company or client folder, e.g. work/acme/clients/brightlabs)."))),
     "jarvis_read": ("Read a vault page (or list a folder). Not for private areas: use jarvis_read_private for those.",
                     _s("", path=_str("Path relative to the vault, e.g. work/acme/clients/brightlabs/overview.md", True))),
     "jarvis_read_private": ("Read a page in a private area (life/health, life/finance, relationships, journal, frameworks/declarations, frameworks/deal-cards). The user is asked every time; use only when this request needs it, and never pass its contents to web tools or other people.",
@@ -53,6 +54,12 @@ TOOLS = {
                      _s("", path=_str("Path relative to the vault.", True), content=_str("Full page content (replace/create) or text to append.", True),
                         mode=_str("create | replace | append (default create).", enum=["create", "replace", "append"]),
                         reason=_str("One line for log.md, e.g. 'Brightlabs wants Q1 rebrand (chat 2026-09-29)'."))),
+    "jarvis_space": ("Company and client knowledge bases. Each company and client folder is its own space: its own pages, raw/ sources, log and generated index, with no links outside it, so it can be shared on its own later. "
+                     "action=create makes a folder a space (safe on an existing folder), list shows them all, check reports what would leak if it were shared.",
+                     _s("", action=_str("create | list | check", True, enum=["create", "list", "check"]),
+                        path=_str("The folder, e.g. work/acme or work/acme/clients/brightlabs (create, check)."),
+                        kind=_str("company | client | project | team (create; default client).", enum=["company", "client", "project", "team"]),
+                        name=_str("Display name (create), e.g. Brightlabs."))),
     "jarvis_history": ("List the saved earlier versions of a page (kept automatically before every change).",
                        _s("", path=_str("Path relative to the vault.", True))),
     "jarvis_restore": ("Undo changes to a page: put back an earlier version (the latest saved one unless a version is given). The current text is saved first, so this can be undone too.",
@@ -78,7 +85,7 @@ def call(name: str, args: dict) -> str:
     if name == "jarvis_recall":
         return recall_text(user_message=args.get("message", ""), is_first_turn=False) or "No vault pages match this message."
     if name == "jarvis_search":
-        hits = vault.search(args["query"], int(args.get("limit") or 10))
+        hits = vault.search(args["query"], int(args.get("limit") or 10), args.get("space") or "")
         return json.dumps(hits, indent=2, ensure_ascii=False) if hits else "No matches."
     if name == "jarvis_read":
         return vault.read(args["path"])
@@ -86,6 +93,18 @@ def call(name: str, args: dict) -> str:
         return vault.read(args["path"], allow_private=True)
     if name == "jarvis_write":
         return vault.write(args["path"], args["content"], args.get("mode") or "create", args.get("reason") or "")
+    if name == "jarvis_space":
+        action = args.get("action")
+        if action == "list":
+            spaces = vault.space_list()
+            return json.dumps(spaces, indent=2, ensure_ascii=False) if spaces else "No spaces yet. Make a company or client folder a space with action=create."
+        if not args.get("path"):
+            raise vault.VaultError("Give the folder path.")
+        if action == "create":
+            return vault.space_create(args["path"], args.get("kind") or "client", args.get("name") or "")
+        if action == "check":
+            return json.dumps(vault.space_check(args["path"]), indent=2, ensure_ascii=False)
+        raise vault.VaultError("action must be create, list or check.")
     if name == "jarvis_history":
         versions = vault.history(args["path"])
         return "\n".join(versions[-20:]) if versions else "No earlier versions saved for this page."

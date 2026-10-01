@@ -23,7 +23,10 @@ metadata:
 6. **Uncited claims:** facts on wiki pages with no `sources` and no conversation date → list them.
 7. **Stale:** `status: active` pages not updated in 90 days → list; projects past `due` → list.
 8. **Relationships:** people overdue for a check-in per `relationships/circles.md` → hand to `relationship-checkin`.
-9. Append one line to `log.md`: `## [YYYY-MM-DD] lint | fixed N, needs you M`.
+9. **Spaces:** `jarvis_space` list; for each, `jarvis_space` check. Fix links out of a space by copying
+   the fact in (with its source); move personal notes out to the right personal page; list what you
+   couldn't fix. Client or company folders that aren't spaces yet: make them spaces (safe, adds files only).
+10. Append one line to `log.md`: `## [YYYY-MM-DD] lint | fixed N, needs you M`.
 10. Message the user only if something needs them, as a short list with one suggested action each.
 
 ## Pitfalls

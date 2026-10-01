@@ -163,6 +163,53 @@ class PrivacyAndSafetyTests(unittest.TestCase):
 
 
 
+class SpaceTests(unittest.TestCase):
+    """Each company and client is its own knowledge base that can be shared without leaking."""
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name) / 'knowledge'
+        (self.root / 'relationships/people').mkdir(parents=True)
+        (self.root / 'relationships/people/sam.md').write_text('# Sam\npartner\n')
+        env = patch.dict(os.environ, {'JARVIS_VAULT': str(self.root), 'JARVIS_REPO': str(ROOT), 'JARVIS_HOME': str(Path(self.tmp.name) / 'config')})
+        env.start(); self.addCleanup(env.stop)
+        vault.space_create('work/twiss', 'company', 'Twiss')
+        vault.space_create('work/twiss/clients/brightlabs', 'client', 'Brightlabs')
+        vault.space_create('work/twiss/clients/nomi', 'client', 'Nomi')
+
+    def test_space_has_its_own_parts_and_index(self):
+        base = self.root / 'work/twiss/clients/brightlabs'
+        for part in ['SPACE.md', 'overview.md', 'raw', 'log.md', 'index.md']:
+            self.assertTrue((base / part).exists(), part)
+        vault.write('work/twiss/clients/brightlabs/contacts/david.md', '# David Lee\nCMO')
+        self.assertIn('[[contacts/david|David Lee]]', (base / 'index.md').read_text())
+        self.assertIn('contacts/david.md', (base / 'log.md').read_text())
+        self.assertIn('clients/brightlabs/index', (self.root / 'work/twiss/index.md').read_text())
+
+    def test_generated_and_source_files_are_protected(self):
+        vault.write('work/twiss/clients/brightlabs/raw/2026/brief.md', 'brief')
+        for rel, mode in [('work/twiss/clients/brightlabs/raw/2026/brief.md', 'replace'),
+                          ('work/twiss/clients/brightlabs/index.md', 'replace'),
+                          ('work/twiss/clients/brightlabs/log.md', 'replace')]:
+            with self.subTest(rel=rel), self.assertRaises(vault.VaultError):
+                vault.write(rel, 'x', mode=mode)
+
+    def test_leaks_are_flagged(self):
+        out = vault.write('work/twiss/clients/brightlabs/meetings/a.md', '# Kickoff\nSee [[work/twiss/clients/nomi/overview]]. Sam joined.')
+        self.assertIn('links outside its space', out)
+        report = vault.space_check('work/twiss/clients/brightlabs')
+        self.assertFalse(report['ok_to_share'])
+        self.assertIn('work/twiss/clients/nomi/overview.md', str(report['links_outside']))
+        self.assertIn('Sam', str(report['mentions_personal_contacts']))
+        self.assertTrue(vault.space_check('work/twiss/clients/nomi')['ok_to_share'])
+
+    def test_search_can_stay_inside_one_space(self):
+        vault.write('work/twiss/clients/nomi/projects/app.md', '# App\nlaunch plan')
+        vault.write('work/twiss/clients/brightlabs/projects/site.md', '# Site\nlaunch plan')
+        hits = vault.search('launch plan', space='work/twiss/clients/nomi')
+        self.assertEqual([h['path'] for h in hits], ['work/twiss/clients/nomi/projects/app.md'])
+
+
 class ScheduleTests(unittest.TestCase):
     """Wave 2: routines come from me/routines.md, with forgiving times and days."""
     def setUp(self):

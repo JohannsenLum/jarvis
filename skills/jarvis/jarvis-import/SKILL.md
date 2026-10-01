@@ -24,6 +24,9 @@ metadata:
 - Big imports cost tokens. Give a rough size up front (number of documents) and import in batches.
 
 ## Procedure
+Client and company folders import into their **space** (`jarvis_space` create first): originals go in the
+space's `raw/`, notes become pages inside it. Never mix two clients' files in one space.
+
 1. **Scan.** Use a recent scan if one exists (`inbox/.import-scan.json` in the vault, from setup, less
    than 7 days old). Otherwise ask to scan, then run with the terminal tool:
    `python3 <Jarvis repo>/bin/scan_folders.py --out <vault>/inbox/.import-scan.json`

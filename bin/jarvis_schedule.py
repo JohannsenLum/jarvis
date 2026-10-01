@@ -65,7 +65,7 @@ ROUTINES = {
 # private-area reader isn't on the list. The finished notification is posted by launchd's shell, not the model.
 JOB_TOOLS = ["Skill", "Read", "Glob", "Grep"] + [f"{prefix}{tool}" for prefix in ("mcp__jarvis__", "mcp__plugin_jarvis_jarvis__")
              for tool in ("jarvis_now", "jarvis_recall", "jarvis_search", "jarvis_read", "jarvis_write", "jarvis_propose",
-                          "jarvis_log", "jarvis_onboarding", "jarvis_frameworks", "jarvis_status", "jarvis_history")]
+                          "jarvis_log", "jarvis_onboarding", "jarvis_frameworks", "jarvis_status", "jarvis_history", "jarvis_space")]
 JOB_DENIED = ["Bash", "Write", "Edit", "NotebookEdit", "WebFetch", "WebSearch", "mcp__jarvis__jarvis_read_private",
               "mcp__plugin_jarvis_jarvis__jarvis_read_private"]
 

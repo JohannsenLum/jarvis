@@ -170,7 +170,8 @@ Wei Ling (close friend), David (mentor)." (open; if contacts are connected, offe
 multi-select picker first). Sort into circles (partner, family, close, mentor, network), asking
 only if truly unclear. Confirm the list back in one line.
 
-**Build live:** work folders from the templates, one page per client and per person (`_templates/`),
+**Build live:** make the company a space and each client its own space (`jarvis_space` create: kind
+`company`, then kind `client` per client), then one page per person (`_templates/`),
 the tree, then: "Mention any of them and I'll bring the context."
 
 ### Chapter 3 · What matters (steps `goals`, `principles`)

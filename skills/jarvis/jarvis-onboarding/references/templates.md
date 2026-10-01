@@ -26,6 +26,11 @@ mentors monthly · network quarterly.
 
 ## Work templates
 
+Each company folder and each client folder is a **space** (see SCHEMA.md → Spaces): create it with
+`jarvis_space` (action `create`, kind `company` or `client`, name) before writing its pages. That adds
+`SPACE.md`, `overview.md`, `raw/` and `log.md`; the index keeps itself up to date. Client pages,
+contacts, meetings and that client's sources all go inside its space.
+
 ### agency → `work/<agency-slug>/`
 ```
 clients/<client-slug>/overview.md     (_templates/client.md)  one per client

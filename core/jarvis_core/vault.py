@@ -10,6 +10,10 @@ Rules enforced here (see knowledge/SCHEMA.md):
 - Writes are atomic, serialised with a lock, and the previous version of a changed page is kept in
   `.history/` so a bad write can be undone (`restore`).
 - Every write appends one line to `log.md`; for private pages that line names the page, nothing more.
+- Spaces: a folder with a SPACE.md (each company, each client) is a self-contained knowledge base with
+  its own `raw/` (write-once), `log.md` (every change in it) and `index.md` (generated). Pages in a space
+  shouldn't link outside it, so the folder can one day be shared on its own without leaking anything else;
+  writes that do get a warning, and `space_check` reports what would leak.
 """
 from __future__ import annotations
 
@@ -167,8 +171,15 @@ def write(rel: str, content: str, mode: str = "create", reason: str = "") -> str
         raise VaultError(f"Only text files can be written ({', '.join(sorted(TEXT_SUFFIXES))}).")
     with _locked():
         exists = path.exists()
-        if policy.startswith("raw/") and exists:
+        space = space_of(rel)
+        if (policy.startswith("raw/") or "/raw/" in policy) and exists:
             raise VaultError("Files in raw/ are never edited. Save a new source instead.")
+        if space and rel == f"{space}/index.md":
+            raise VaultError(f"{rel} is generated from the space's pages. Write the pages; the index updates itself.")
+        if space and rel in (f"{space}/log.md",) and mode != "append":
+            raise VaultError(f"{rel} is append-only (it's this space's change log).")
+        if space and rel == f"{space}/{SPACE_FILE}" and exists and mode != "replace":
+            raise VaultError(f"{rel} describes the space. Read it, then replace it if it must change.")
         if policy.startswith("me/") and policy not in ME_ALWAYS_WRITABLE + ("me/_proposals.md",):
             if not (ME_ONBOARDING_PAGES.match(policy) and mode == "create" and not exists and _onboarding_active()):
                 raise VaultError("me/ belongs to the user. Use jarvis_propose to suggest the change instead"
@@ -197,7 +208,15 @@ def write(rel: str, content: str, mode: str = "create", reason: str = "") -> str
         verb = {"create": "create", "replace": "update" if exists else "create", "append": "update"}[mode]
         # Private pages: the log names the page and nothing about what changed.
         _log_line(rel if is_private(rel) or not reason else f"{rel}: {reason}", verb)
-    return f"{'Updated' if exists else 'Created'} {rel}"
+        note = ""
+        if space and rel != f"{space}/log.md":
+            _space_log(space, f"{rel[len(space) + 1:]}{': ' + _one_line(reason) if reason else ''}", verb)
+            _space_index(space)
+            outside = _outside_links(space, content)
+            if outside:
+                note = (f" Note: this page links outside its space ({', '.join(outside[:5])}). If {space} is ever shared,"
+                        " those links break or point at private pages; copy the facts it needs into this space instead.")
+    return f"{'Updated' if exists else 'Created'} {rel}.{note}" if note else f"{'Updated' if exists else 'Created'} {rel}"
 
 
 def history(rel: str) -> list[str]:
@@ -245,7 +264,7 @@ def propose(change: str, why: str = "", source: str = "") -> str:
     return "Added to me/_proposals.md"
 
 
-def search(query: str, limit: int = 10) -> list[dict]:
+def search(query: str, limit: int = 10, space: str = "") -> list[dict]:
     """Case-insensitive search over file names and contents. Private areas only ever return the path
     (open them with jarvis_read_private if the request needs it); log.md, raw/ and templates are skipped."""
     root = config.vault()
@@ -262,7 +281,9 @@ def search(query: str, limit: int = 10) -> list[dict]:
         except (VaultError, ValueError, OSError):
             continue
         low_rel = rel.casefold()
-        if any(part.startswith(".") for part in Path(rel).parts) or low_rel.startswith(("raw/", "_templates/")) or low_rel == "log.md":
+        if space and not low_rel.startswith(space.casefold().strip("/") + "/"):
+            continue
+        if any(part.startswith(".") for part in Path(rel).parts) or low_rel.startswith(("raw/", "_templates/")) or low_rel.endswith("log.md") or "/raw/" in low_rel:
             continue
         try:
             text = path.read_text(errors="ignore")
@@ -335,3 +356,205 @@ def update_onboarding(patch: dict) -> dict:
         _atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
         _log_line(f"me/onboarding.json: {', '.join(patch)}", "update")
     return data
+
+
+# ---------- spaces: one self-contained knowledge base per company and per client ----------
+
+SPACE_FILE = "SPACE.md"
+SPACE_KINDS = ("company", "client", "project", "team")
+
+
+def space_of(rel: str) -> str | None:
+    """The nearest folder above `rel` (or `rel` itself, for a folder) that is a space."""
+    root = config.vault().resolve()
+    parts = Path(rel.strip("/")).parts
+    for i in range(len(parts), 0, -1):
+        candidate = "/".join(parts[:i])
+        if (root / candidate / SPACE_FILE).is_file() and not (root / candidate).is_symlink():
+            return candidate
+    return None
+
+
+def _space_log(space: str, entry: str, kind: str) -> None:
+    path = config.vault().resolve() / space / "log.md"
+    if not path.exists():
+        path.write_text(f"# Change log: {space}\n\nEvery change in this space, newest last. Append-only.\n\n")
+    with path.open("a") as f:
+        f.write(f"## [{today()}] {_one_line(kind, 20)} | {_one_line(entry)}\n")
+
+
+def _title(path: Path) -> str:
+    try:
+        text = path.read_text(errors="ignore")[:4000]
+    except OSError:
+        return path.stem
+    m = re.search(r"^#\s+(.+)$", text, re.M)
+    return m.group(1).strip() if m else path.stem.replace("-", " ")
+
+
+def _space_pages(space: str) -> tuple[list[Path], list[str]]:
+    """Pages that belong to this space (not to a space nested inside it), and the nested spaces."""
+    root = config.vault().resolve()
+    base = root / space
+    pages, nested = [], []
+    for path in sorted(base.rglob("*")):
+        rel = path.relative_to(root).as_posix()
+        if any(part.startswith(".") for part in path.relative_to(base).parts) or path.is_symlink():
+            continue
+        owner = space_of(rel if path.is_dir() else str(Path(rel).parent))
+        if path.is_dir() and owner == rel and rel != space:
+            nested.append(rel)
+        elif path.is_file() and path.suffix.lower() == ".md" and owner == space:
+            pages.append(path)
+    return pages, nested
+
+
+def _space_index(space: str) -> None:
+    root = config.vault().resolve()
+    meta = _space_meta(space)
+    pages, nested = _space_pages(space)
+    lines = [f"# {meta.get('name') or space.split('/')[-1]}: index", "",
+             "_Generated by Jarvis from this space's pages. Don't edit; it's rewritten on every change._", ""]
+    groups: dict[str, list[str]] = {}
+    for p in pages:
+        rel_in = p.relative_to(root / space).as_posix()
+        if rel_in in ("index.md", "log.md", SPACE_FILE) or rel_in.startswith("raw/"):
+            continue
+        folder = str(Path(rel_in).parent)
+        groups.setdefault("" if folder == "." else folder, []).append(f"- [[{rel_in[:-3]}|{_title(p)}]]")
+    for folder in sorted(groups):
+        if folder:
+            lines += ["", f"## {folder}"]
+        lines += groups[folder]
+    if nested:
+        lines += ["", "## Spaces inside this one"] + [f"- [[{n[len(space) + 1:]}/index|{_space_meta(n).get('name') or n.split('/')[-1]}]]" for n in nested]
+    raw = root / space / "raw"
+    if raw.is_dir():
+        n = sum(1 for p in raw.rglob("*") if p.is_file() and not p.name.startswith("."))
+        lines += ["", f"_{n} source file(s) in raw/._"]
+    _atomic_write(root / space / "index.md", "\n".join(lines) + "\n")
+
+
+def _space_meta(space: str) -> dict:
+    try:
+        text = (config.vault().resolve() / space / SPACE_FILE).read_text()
+    except OSError:
+        return {}
+    m = re.match(r"^---\n(.*?)\n---", text, re.S)
+    return dict(re.findall(r"^(\w+):\s*(.+)$", m.group(1), re.M)) if m else {}
+
+
+def _page_keys(path: Path, root: Path) -> set[str]:
+    rel = path.relative_to(root).as_posix()[:-3].casefold()
+    return {rel, rel.split("/")[-1]}
+
+
+def _outside_links(space: str, content: str) -> list[str]:
+    """[[links]] in `content` that point at a page outside this space (or into a private area)."""
+    root = config.vault().resolve()
+    targets = [t.strip() for t in re.findall(r"\[\[([^\]|#]+)", content)]
+    if not targets:
+        return []
+    inside: set[str] = set()
+    for p in _space_pages(space)[0]:
+        rel_in = p.relative_to(root / space).as_posix()[:-3].casefold()
+        inside |= {rel_in, rel_in.split("/")[-1]}
+    out = []
+    for t in targets:
+        key = t.casefold().removesuffix(".md")
+        if key in inside or key.startswith(space.casefold() + "/"):
+            continue
+        hit = next((p for p in root.rglob("*.md") if key in _page_keys(p, root) and not any(x.startswith(".") for x in p.relative_to(root).parts)), None)
+        if hit:
+            out.append(hit.relative_to(root).as_posix())
+    return sorted(set(out))
+
+
+def space_create(path: str, kind: str = "client", name: str = "", sharing: str = "private") -> str:
+    """Make `path` a space (or finish one that's missing its parts). Never touches existing pages."""
+    if kind not in SPACE_KINDS:
+        raise VaultError(f"kind must be one of {', '.join(SPACE_KINDS)}.")
+    folder = resolve(path)
+    rel = folder.relative_to(config.vault().resolve()).as_posix()
+    if not rel or is_private(rel) or rel.casefold().startswith(("me/", "raw/", "_templates/", "journal/")):
+        raise VaultError("Spaces are for work: a company, client, project or team folder (for example work/acme/clients/brightlabs).")
+    name = _one_line(name or rel.split("/")[-1].replace("-", " ").title(), 80)
+    made = []
+    with _locked():
+        folder.mkdir(parents=True, exist_ok=True)
+        manifest = folder / SPACE_FILE
+        if not manifest.exists():
+            parent = space_of(str(Path(rel).parent)) if "/" in rel else None
+            manifest.write_text(
+                f"---\ntype: space\nkind: {kind}\nname: {name}\nsharing: {sharing}\ncreated: {today()}\n"
+                + (f"inside: {parent}\n" if parent else "") + "---\n"
+                f"# {name}\n\nA self-contained knowledge base for this {kind}. Everything about {name} lives in this folder:\n"
+                "pages, the sources they came from (`raw/`, never edited), and the change log (`log.md`).\n\n"
+                "Rules, so this folder can be shared on its own one day:\n"
+                "- Facts about this " + kind + " go here, nowhere else. Link only to pages inside this folder.\n"
+                "- Nothing personal: no notes about the user's own life, health, money or private relationships.\n"
+                "- Contacts at this " + kind + " get a page in `contacts/`.\n")
+            made.append(SPACE_FILE)
+        if not (folder / "overview.md").exists():
+            (folder / "overview.md").write_text(f"---\ntype: {kind}\nstatus: active\nupdated: {today()}\n---\n# {name}\n\n**In one line:**\n")
+            made.append("overview.md")
+        raw = folder / "raw"
+        if not raw.exists():
+            raw.mkdir()
+            (raw / "README.md").write_text(f"# Sources for {name}\n\nOriginal files (briefs, contracts, transcripts), filed as raw/YYYY/MM/<name>. Never edited.\n")
+            made.append("raw/")
+        if not (folder / "log.md").exists():
+            _space_log(rel, "space created", "create")
+            made.append("log.md")
+        _space_index(rel)
+        parent = space_of(str(Path(rel).parent)) if "/" in rel else None
+        if parent:
+            _space_index(parent)                                   # the company's index lists its client spaces
+        _log_line(f"{rel}: became a {kind} space" + (f" (added {', '.join(made)})" if made else ""), "create")
+    return f"{rel} is a {kind} space" + (f" (added {', '.join(made)})." if made else " (already complete).")
+
+
+def space_list() -> list[dict]:
+    root = config.vault().resolve()
+    out = []
+    for manifest in sorted(root.rglob(SPACE_FILE)):
+        rel = manifest.parent.relative_to(root).as_posix()
+        if any(part.startswith(".") for part in manifest.relative_to(root).parts):
+            continue
+        meta = _space_meta(rel)
+        pages, nested = _space_pages(rel)
+        content = [p for p in pages if p.name not in ("index.md", "log.md", SPACE_FILE) and "raw" not in p.relative_to(manifest.parent).parts]
+        out.append({"path": rel, "kind": meta.get("kind", "?"), "name": meta.get("name", rel), "sharing": meta.get("sharing", "private"),
+                    "pages": len(content), "spaces_inside": nested})
+    return out
+
+
+def space_check(path: str) -> dict:
+    """What would leak, or break, if this space's folder were shared on its own."""
+    root = config.vault().resolve()
+    rel = resolve(path).relative_to(root).as_posix()
+    if space_of(rel) != rel:
+        raise VaultError(f"{rel} isn't a space. Make it one with jarvis_space (action create).")
+    pages, _ = _space_pages(rel)
+    personal: dict[str, str] = {}
+    people = root / "relationships" / "people"
+    if people.is_dir():
+        for p in people.glob("*.md"):
+            for n in {_title(p), p.stem.replace("-", " ").title()}:
+                if len(n) >= 3:                                   # case-sensitive below: "Sam" the person, not "sam"
+                    personal[n] = p.relative_to(root).as_posix()
+    report = {"space": rel, "pages": len(pages), "links_outside": {}, "mentions_personal_contacts": {}, "missing": []}
+    for p in pages:
+        text = p.read_text(errors="ignore")
+        page = p.relative_to(root).as_posix()
+        out = _outside_links(rel, text)
+        if out:
+            report["links_outside"][page] = out
+        names = sorted(n for n in personal if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text))
+        if names:
+            report["mentions_personal_contacts"][page] = names
+    for part in ("overview.md", "log.md", "raw"):
+        if not (root / rel / part).exists():
+            report["missing"].append(part)
+    report["ok_to_share"] = not (report["links_outside"] or report["mentions_personal_contacts"])
+    return report

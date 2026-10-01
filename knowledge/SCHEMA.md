@@ -39,6 +39,25 @@ is Jarvis's job.
 5. **Filenames** are lowercase slugs: `relationships/people/wei-ling.md`.
 6. **No secrets.** No passwords, API keys, card or account numbers anywhere in the vault.
 
+## Spaces: one knowledge base per company and client
+Every company folder (`work/<company>/`) and every client folder (`work/<company>/clients/<client>/`,
+`work/freelance/clients/<client>/`) is a **space**: a self-contained knowledge base with its own
+- `SPACE.md`: what it is (kind, name, sharing), plus its rules;
+- `overview.md` and pages in `contacts/`, `projects/`, `meetings/`, `decisions/`, `deliverables/`…;
+- `raw/`: this client's original sources (briefs, contracts, transcripts), write-once;
+- `log.md`: every change inside it (append-only, written by Jarvis);
+- `index.md`: generated from its pages on every change (don't edit).
+
+Rules, so a client's folder can be shared on its own later without leaking anything else:
+1. Everything about a client lives in its space, including the sources it came from.
+2. Pages in a space link only to pages inside it. Need a fact from elsewhere? Copy the fact in, with
+   its source, rather than linking out. Jarvis warns when a page links out.
+3. Nothing personal in a space: no notes about the user's own life, health, money or private
+   relationships. Work contacts get a page in the space's `contacts/`, not in `relationships/`.
+4. A company space contains its client spaces; sharing a client shares only that client.
+Make a folder a space with `jarvis_space` (action create; safe on an existing folder). `jarvis_space`
+action check lists what would leak if it were shared.
+
 ## Sharing
 This vault is **private**. No folder, including `work/` and `life/`, is shared with anyone or synced
 to a shared service. Do not set up sharing, shared folders or collaborator access unless the user

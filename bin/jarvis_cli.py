@@ -487,7 +487,8 @@ def export_skills(out: Path) -> None:
 
 OFFICE_DIR = Path.home() / ".jarvis-office"
 JARVIS_AUTO_TOOLS = ("jarvis_now", "jarvis_recall", "jarvis_search", "jarvis_read", "jarvis_write", "jarvis_propose", "jarvis_log",
-                     "jarvis_onboarding", "jarvis_settings", "jarvis_frameworks", "jarvis_status", "jarvis_history", "jarvis_restore")
+                     "jarvis_onboarding", "jarvis_settings", "jarvis_frameworks", "jarvis_status", "jarvis_history", "jarvis_restore",
+                     "jarvis_space")
 
 
 def _node() -> str | None:

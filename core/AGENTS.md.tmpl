@@ -44,8 +44,10 @@ before writing to it. The short version:
 Available in every tool the user has connected. Prefer them over raw file edits for the vault,
 because they enforce the vault rules and write the log for you:
 `jarvis_now`, `jarvis_recall`, `jarvis_search`, `jarvis_read`, `jarvis_read_private`, `jarvis_write`,
-`jarvis_history`, `jarvis_restore`, `jarvis_propose`, `jarvis_log`, `jarvis_onboarding`, `jarvis_settings`,
+`jarvis_history`, `jarvis_restore`, `jarvis_space`, `jarvis_propose`, `jarvis_log`, `jarvis_onboarding`, `jarvis_settings`,
 `jarvis_frameworks`, `jarvis_status`.
+- Each company and client has its own space (`jarvis_space`): its pages, sources (`raw/`) and log stay
+  inside its folder, and its pages never link outside it, so it can be shared on its own later.
 - `jarvis_write` creates by default and refuses to overwrite: read the page, then `append` or `replace`.
   Every change keeps the previous version; `jarvis_restore` undoes a bad edit.
 - At the start of a conversation, call `jarvis_now` unless its contents are already in your context.
