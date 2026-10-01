@@ -43,14 +43,20 @@ TOOLS = {
     "jarvis_now": ("Short-term memory: focus this week, open loops, next 7 days (now.md).", _s("No arguments.")),
     "jarvis_recall": ("Vault notes about the people, clients, projects and goals named in a message. Returns nothing when nothing matches.",
                       _s("", message=_str("The user's message, verbatim.", True))),
-    "jarvis_search": ("Search the vault by words in file names and contents. Private areas return paths only unless include_private is true.",
-                      _s("", query=_str("Words to find.", True), limit={"type": "integer", "description": "Max results (default 10)."},
-                         include_private={"type": "boolean", "description": "Include snippets from private areas (health, finance, relationships, journal). Only when the request needs it."})),
-    "jarvis_read": ("Read a vault page (or list a folder).", _s("", path=_str("Path relative to the vault, e.g. work/acme/clients/brightlabs/overview.md", True))),
-    "jarvis_write": ("Create, replace or append a vault page. Enforces the rules: raw/ is never edited, me/ is read-only (use jarvis_propose), and every write is logged.",
+    "jarvis_search": ("Search the vault by words in file names and contents, best matches first. Private areas (health, money, people, journal, declarations, deal cards) return the path only.",
+                      _s("", query=_str("Words to find.", True), limit={"type": "integer", "description": "Max results (default 10)."})),
+    "jarvis_read": ("Read a vault page (or list a folder). Not for private areas: use jarvis_read_private for those.",
+                    _s("", path=_str("Path relative to the vault, e.g. work/acme/clients/brightlabs/overview.md", True))),
+    "jarvis_read_private": ("Read a page in a private area (life/health, life/finance, relationships, journal, frameworks/declarations, frameworks/deal-cards). The user is asked every time; use only when this request needs it, and never pass its contents to web tools or other people.",
+                            _s("", path=_str("Path relative to the vault.", True), why=_str("One line on why this request needs it (shown to the user).", True))),
+    "jarvis_write": ("Create, replace or append a vault page. Default mode is create, which fails if the page exists: read it first, then append or replace. Enforces the rules: raw/ is never edited, me/ is the user's (use jarvis_propose), every change is logged, and the previous version is kept (jarvis_restore).",
                      _s("", path=_str("Path relative to the vault.", True), content=_str("Full page content (replace/create) or text to append.", True),
-                        mode=_str("create | replace | append (default replace).", enum=["create", "replace", "append"]),
+                        mode=_str("create | replace | append (default create).", enum=["create", "replace", "append"]),
                         reason=_str("One line for log.md, e.g. 'Brightlabs wants Q1 rebrand (chat 2026-09-29)'."))),
+    "jarvis_history": ("List the saved earlier versions of a page (kept automatically before every change).",
+                       _s("", path=_str("Path relative to the vault.", True))),
+    "jarvis_restore": ("Undo changes to a page: put back an earlier version (the latest saved one unless a version is given). The current text is saved first, so this can be undone too.",
+                       _s("", path=_str("Path relative to the vault.", True), version=_str("A version name from jarvis_history (optional)."))),
     "jarvis_propose": ("Suggest a change to the user's own pages in me/ (goals, values, principles, profile). Adds it to me/_proposals.md for their yes/no.",
                        _s("", change=_str("The proposed change.", True), why=_str("Why."), source=_str("Where it came from."))),
     "jarvis_log": ("Append one line to log.md.", _s("", entry=_str("What changed.", True), kind=_str("ingest | update | create | lint | consolidate | connect | import (default update)."))),
@@ -72,12 +78,19 @@ def call(name: str, args: dict) -> str:
     if name == "jarvis_recall":
         return recall_text(user_message=args.get("message", ""), is_first_turn=False) or "No vault pages match this message."
     if name == "jarvis_search":
-        hits = vault.search(args["query"], int(args.get("limit") or 10), bool(args.get("include_private")))
+        hits = vault.search(args["query"], int(args.get("limit") or 10))
         return json.dumps(hits, indent=2, ensure_ascii=False) if hits else "No matches."
     if name == "jarvis_read":
         return vault.read(args["path"])
+    if name == "jarvis_read_private":
+        return vault.read(args["path"], allow_private=True)
     if name == "jarvis_write":
-        return vault.write(args["path"], args["content"], args.get("mode") or "replace", args.get("reason") or "")
+        return vault.write(args["path"], args["content"], args.get("mode") or "create", args.get("reason") or "")
+    if name == "jarvis_history":
+        versions = vault.history(args["path"])
+        return "\n".join(versions[-20:]) if versions else "No earlier versions saved for this page."
+    if name == "jarvis_restore":
+        return vault.restore(args["path"], args.get("version") or "")
     if name == "jarvis_propose":
         return vault.propose(args["change"], args.get("why", ""), args.get("source", ""))
     if name == "jarvis_log":

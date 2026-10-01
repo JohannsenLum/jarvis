@@ -279,7 +279,7 @@ function snapshot() {
     if (sc.text && !sc.asking && Date.now() - item.created > 4000) item.resolve(null);
   }
   return { root: ROOT, session: s?.id || null, tmux: tmuxAlive(), screen: sc, main, desks, visitors, now, board: kanban, ops: opsSnapshot(),
-           permissions: [...pending.values()].map(({ id, tool, detail, agent, agentId, created }) => ({ id, tool, detail, agent, agentId, created })),
+           permissions: [...pending.values()].map(({ id, tool, detail, full, agent, agentId, created }) => ({ id, tool, detail, full, agent, agentId, created })),
            question: openQuestion(s ? readJsonl(s.p).entries : []) };
 }
 
@@ -323,7 +323,9 @@ function askDashboard(hook, res) {
     if (clients.size === 0) return resolve(null);        // nobody watching: let the terminal ask
     const id = crypto.randomBytes(6).toString("hex");
     const t = toolSummary(hook.tool_name, hook.tool_input);
-    const item = { id, tool: t.name, detail: t.detail, agent: hook.agent_type || agentTypeOf(hook.agent_id), agentId: hook.agent_id || null, created: Date.now(),
+    // The full request, never shortened, so what you approve is exactly what runs.
+    let full = ""; try { full = JSON.stringify(hook.tool_input ?? {}, null, 2); } catch { full = String(hook.tool_input); }
+    const item = { id, tool: t.name, detail: t.detail, full: full.length > 20000 ? full.slice(0, 20000) + "\n… (request is longer than 20,000 characters; check it in the terminal)" : full, agent: hook.agent_type || agentTypeOf(hook.agent_id), agentId: hook.agent_id || null, created: Date.now(),
       resolve: (decision) => { clearTimeout(item.timer); pending.delete(id); setImmediate(broadcast); resolve(decision); } };
     item.timer = setTimeout(() => item.resolve(null), 110000);
     // Answered in the terminal instead: Claude Code stops the hook, the connection drops, the card goes.
@@ -468,6 +470,8 @@ const server = http.createServer(async (req, res) => {
         const text = String(b.text || "").trim();
         if (!text && !b.key) return send(res, 400, { error: "empty" });
         if (b.key && !KEYS.has(b.key)) return send(res, 400, { error: "key not allowed" });
+        // A permission prompt or picker is open: typed text + Enter would answer it. Only keys may go through.
+        if (text && !b.key && screen().asking) return send(res, 409, { error: "Jarvis is waiting on a question or permission. Answer it first (buttons above, or the terminal)." });
         typeIntoSession(text, b.key);
         return send(res, 200, { ok: true });
       }
@@ -489,6 +493,11 @@ const server = http.createServer(async (req, res) => {
     }
   }
 });
+
+// Credentials live only as long as this server: remove them on exit so nothing else can pick up the port.
+const cleanup = () => { for (const name of ["hook-token", "ui-token", "port"]) { try { const p = path.join(STATE_DIR, name); if (fs.readFileSync(p, "utf8") && fs.statSync(p)) fs.unlinkSync(p); } catch { /* gone */ } } };
+process.on("exit", cleanup);
+for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => process.exit(0));
 
 server.requestTimeout = 15000;
 server.headersTimeout = 10000;

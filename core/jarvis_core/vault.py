@@ -1,22 +1,37 @@
 """Vault operations with the SCHEMA rules enforced, shared by the MCP server, hooks and CLI.
 
 Rules enforced here (see knowledge/SCHEMA.md):
-- Paths stay inside the vault; no hidden files.
+- Paths stay inside the vault; no hidden files, no symlinks.
 - `raw/` is write-once: new files only, never edited.
-- `me/` is the user's: only `me/_proposals.md` (append via propose) and `me/onboarding.json` are writable.
-- Every write appends a line to `log.md`.
+- `me/` is the user's: only `me/_proposals.md` (append via propose), `me/onboarding.json` and
+  `me/routines.md` are writable, plus first-time creation of the onboarding pages while onboarding runs.
+- Private areas (PRIVATE) are never excerpted or searched with content, and reading them needs
+  `read(..., allow_private=True)`, which the MCP server only offers through a tool that always asks.
+- Writes are atomic, serialised with a lock, and the previous version of a changed page is kept in
+  `.history/` so a bad write can be undone (`restore`).
+- Every write appends one line to `log.md`; for private pages that line names the page, nothing more.
 """
 from __future__ import annotations
 
+import contextlib
 import datetime as _dt
+import fcntl
 import json
+import os
 import re
+import tempfile
 from pathlib import Path
 
 from . import config
 
-PRIVATE = ("life/health/", "life/finance/", "journal/", "relationships/", "frameworks/declarations/")
+# The one list of private areas. recall.py, the MCP server, the office dashboard and the docs follow it.
+PRIVATE = ("life/health/", "life/finance/", "journal/", "relationships/", "frameworks/declarations/",
+           "frameworks/deal-cards/")
 TEXT_SUFFIXES = {".md", ".txt", ".json", ".csv", ".yaml", ".yml"}
+ME_ALWAYS_WRITABLE = ("me/onboarding.json", "me/routines.md")
+# Pages onboarding creates for the user (create only, never replace, and only until onboarding is complete).
+ME_ONBOARDING_PAGES = re.compile(r"^me/(profile\.md|principles\.md|goals/[\w-]+\.md|frameworks/[\w-]+\.md|decision-tools/[\w-]+\.md)$")
+HISTORY_KEEP = 20
 
 
 class VaultError(ValueError):
@@ -52,11 +67,67 @@ def rel_of(path: Path) -> str:
 
 
 def is_private(rel: str) -> bool:
-    return rel.casefold().startswith(PRIVATE)
+    rel = rel.casefold().strip("/")
+    return any(rel.startswith(p) or rel + "/" == p for p in PRIVATE)
 
 
-def read(rel: str, max_chars: int = 20_000) -> str:
+@contextlib.contextmanager
+def _locked():
+    """Serialise writes from every process (sessions, cron, MCP servers) touching this vault."""
+    root = config.vault()
+    root.mkdir(parents=True, exist_ok=True)
+    with open(root / ".jarvis.lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock, fcntl.LOCK_UN)
+
+
+def _atomic_write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-", suffix=path.suffix)
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+def _history_dir(rel: str) -> Path:
+    return config.vault().resolve() / ".history" / rel
+
+
+def _snapshot(path: Path, rel: str) -> None:
+    """Keep the version about to be changed, newest last, at most HISTORY_KEEP per page."""
+    if not path.exists():
+        return
+    folder = _history_dir(rel)
+    folder.mkdir(parents=True, exist_ok=True)
+    stamp = _dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+    (folder / f"{stamp}{path.suffix}").write_bytes(path.read_bytes())
+    versions = sorted(folder.iterdir())
+    for old in versions[:-HISTORY_KEEP]:
+        with contextlib.suppress(OSError):
+            old.unlink()
+
+
+def _one_line(text: str, limit: int = 300) -> str:
+    """Log entries are one line: no newlines that could forge extra entries."""
+    return re.sub(r"\s+", " ", str(text or "")).strip()[:limit]
+
+
+def read(rel: str, max_chars: int = 20_000, allow_private: bool = False) -> str:
     path = resolve(rel)
+    rel = path.relative_to(config.vault().resolve()).as_posix() if path != config.vault().resolve() else ""
+    if rel and is_private(rel) and not allow_private:
+        raise VaultError(f"'{rel}' is in a private area. Open it with jarvis_read_private, which asks the user first, "
+                         "and only when this request needs it.")
     if not path.exists():
         raise VaultError(f"'{rel}' doesn't exist. Use jarvis_search to find the right page.")
     if path.is_dir():
@@ -66,63 +137,117 @@ def read(rel: str, max_chars: int = 20_000) -> str:
     return text if len(text) <= max_chars else text[:max_chars] + f"\n… (truncated at {max_chars} characters)"
 
 
-def log(entry: str, kind: str = "update") -> str:
-    line = f"## [{today()}] {kind} | {entry.strip()}"
+def _log_line(entry: str, kind: str) -> str:
+    line = f"## [{today()}] {_one_line(kind, 20) or 'update'} | {_one_line(entry)}"
     path = resolve("log.md")
     with path.open("a") as f:
         f.write(line + "\n")
     return line
 
 
-def write(rel: str, content: str, mode: str = "replace", reason: str = "") -> str:
-    """mode: create (fail if exists) | replace | append."""
+def log(entry: str, kind: str = "update") -> str:
+    with _locked():
+        return _log_line(entry, kind)
+
+
+def _onboarding_active() -> bool:
+    data = _load_onboarding(strict=False)
+    return data.get("status") != "complete"
+
+
+def write(rel: str, content: str, mode: str = "create", reason: str = "") -> str:
+    """mode: create (fail if it exists; the default) | replace | append."""
     if mode not in ("create", "replace", "append"):
         raise VaultError("mode must be create, replace or append.")
     path = resolve(rel)
     rel = path.relative_to(config.vault().resolve()).as_posix()
     # macOS volumes are commonly case-insensitive; protect both spellings on every OS.
     policy = rel.casefold()
-    exists = path.exists()
-    if policy.startswith("raw/") and exists:
-        raise VaultError("Files in raw/ are never edited. Save a new source instead.")
-    if policy.startswith("me/") and policy not in ("me/onboarding.json", "me/_proposals.md"):
-        raise VaultError("me/ belongs to the user. Use jarvis_propose to suggest the change instead.")
-    if policy in ("log.md", "me/_proposals.md") and mode != "append":
-        raise VaultError(f"{rel} is append-only. Use jarvis_log or jarvis_propose.")
     if path.suffix.lower() not in TEXT_SUFFIXES:
         raise VaultError(f"Only text files can be written ({', '.join(sorted(TEXT_SUFFIXES))}).")
-    if mode == "create" and exists:
-        raise VaultError(f"'{rel}' already exists. Use mode=replace or append.")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if mode == "append":
-        with path.open("a") as f:
-            f.write(("" if not exists or path.read_text().endswith("\n") else "\n") + content.rstrip("\n") + "\n")
-    else:
-        path.write_text(content.rstrip("\n") + "\n")
-    verb = {"create": "create", "replace": "update" if exists else "create", "append": "update"}[mode]
-    log(f"{rel}{': ' + reason if reason else ''}", verb)
+    with _locked():
+        exists = path.exists()
+        if policy.startswith("raw/") and exists:
+            raise VaultError("Files in raw/ are never edited. Save a new source instead.")
+        if policy.startswith("me/") and policy not in ME_ALWAYS_WRITABLE + ("me/_proposals.md",):
+            if not (ME_ONBOARDING_PAGES.match(policy) and mode == "create" and not exists and _onboarding_active()):
+                raise VaultError("me/ belongs to the user. Use jarvis_propose to suggest the change instead"
+                                 " (onboarding may only create its pages, once).")
+        if policy in ("log.md", "me/_proposals.md") and mode != "append":
+            raise VaultError(f"{rel} is append-only. Use jarvis_log or jarvis_propose.")
+        if mode == "create" and exists:
+            raise VaultError(f"'{rel}' already exists. Read it first, then use mode=append to add to it or "
+                             "mode=replace to rewrite it (the old version is kept and can be restored).")
+        body = content.rstrip("\n") + "\n"
+        if mode == "append" and exists:
+            old = path.read_text(errors="replace")
+            body = old + ("" if not old or old.endswith("\n") else "\n") + body
+        if exists and policy != "log.md":
+            _snapshot(path, rel)
+        if mode == "create":
+            path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                raise VaultError(f"'{rel}' was just created by someone else. Read it, then append or replace.")
+            with os.fdopen(fd, "w") as f:
+                f.write(body)
+        else:
+            _atomic_write(path, body)
+        verb = {"create": "create", "replace": "update" if exists else "create", "append": "update"}[mode]
+        # Private pages: the log names the page and nothing about what changed.
+        _log_line(rel if is_private(rel) or not reason else f"{rel}: {reason}", verb)
     return f"{'Updated' if exists else 'Created'} {rel}"
 
 
+def history(rel: str) -> list[str]:
+    path = resolve(rel)
+    rel = path.relative_to(config.vault().resolve()).as_posix()
+    folder = _history_dir(rel)
+    return sorted(p.name for p in folder.iterdir()) if folder.is_dir() else []
+
+
+def restore(rel: str, version: str = "") -> str:
+    """Put back an earlier version of a page (the latest saved one by default). The current version is
+    saved first, so a restore can itself be undone."""
+    path = resolve(rel)
+    rel = path.relative_to(config.vault().resolve()).as_posix()
+    if rel.casefold().startswith("raw/"):
+        raise VaultError("raw/ sources are never edited, so there is nothing to restore.")
+    versions = history(rel)
+    if not versions:
+        raise VaultError(f"No earlier versions of '{rel}' are saved.")
+    pick = version or versions[-1]
+    if pick not in versions:
+        raise VaultError(f"Unknown version. Saved versions: {', '.join(versions[-10:])}")
+    with _locked():
+        old = (_history_dir(rel) / pick).read_text(errors="replace")
+        _snapshot(path, rel)
+        _atomic_write(path, old)
+        _log_line(f"{rel}: restored version {pick}", "restore")
+    return f"Restored {rel} to the version saved {pick[:8]} {pick[9:15]}."
+
+
 def propose(change: str, why: str = "", source: str = "") -> str:
-    path = resolve("me/_proposals.md")
-    if not path.exists():
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("# Proposed changes to me/\n\nJarvis suggests; you decide. Say yes/no to each.\n\n")
-    entry = f"- [ ] {today()}: {change.strip()}"
-    if why:
-        entry += f"\n  - Why: {why.strip()}"
-    if source:
-        entry += f"\n  - Source: {source.strip()}"
-    with path.open("a") as f:
-        f.write(entry + "\n")
-    log(f"me/_proposals.md: {change.strip()[:80]}", "propose")
+    with _locked():
+        path = resolve("me/_proposals.md")
+        if not path.exists():
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Proposed changes to me/\n\nJarvis suggests; you decide. Say yes/no to each.\n\n")
+        entry = f"- [ ] {today()}: {_one_line(change, 1000)}"
+        if why:
+            entry += f"\n  - Why: {_one_line(why, 1000)}"
+        if source:
+            entry += f"\n  - Source: {_one_line(source, 300)}"
+        with path.open("a") as f:
+            f.write(entry + "\n")
+        _log_line(f"me/_proposals.md: {_one_line(change, 80)}", "propose")
     return "Added to me/_proposals.md"
 
 
-def search(query: str, limit: int = 10, include_private: bool = False) -> list[dict]:
-    """Case-insensitive search over file names and contents. Private areas return paths only
-    unless include_private is set."""
+def search(query: str, limit: int = 10) -> list[dict]:
+    """Case-insensitive search over file names and contents. Private areas only ever return the path
+    (open them with jarvis_read_private if the request needs it); log.md, raw/ and templates are skipped."""
     root = config.vault()
     terms = [t for t in re.split(r"\s+", query.lower().strip()) if t]
     if not terms:
@@ -136,19 +261,21 @@ def search(query: str, limit: int = 10, include_private: bool = False) -> list[d
             rel = rel_of(path)
         except (VaultError, ValueError, OSError):
             continue
-        if any(part.startswith(".") for part in Path(rel).parts) or rel.casefold().startswith("raw/"):
+        low_rel = rel.casefold()
+        if any(part.startswith(".") for part in Path(rel).parts) or low_rel.startswith(("raw/", "_templates/")) or low_rel == "log.md":
             continue
         try:
             text = path.read_text(errors="ignore")
         except OSError:
             continue
         hay = (rel + "\n" + text).lower()
-        score = sum(hay.count(t) for t in terms) + sum(5 for t in terms if t in rel.lower())
-        if score == 0 or not all(t in hay for t in terms):
+        if not all(t in hay for t in terms):
             continue
+        # Rank: hits in the path count most; long pages don't win on raw counts alone.
+        score = sum(5 for t in terms if t in low_rel) + sum(min(hay.count(t), 5) for t in terms)
         entry = {"path": rel, "score": score}
-        if is_private(rel) and not include_private:
-            entry["snippet"] = "(private area: open with jarvis_read only if needed)"
+        if is_private(rel):
+            entry["snippet"] = "(private area: open with jarvis_read_private only if this request needs it)"
         else:
             low = text.lower()
             i = max(0, low.find(terms[0]) - 80)
@@ -158,23 +285,53 @@ def search(query: str, limit: int = 10, include_private: bool = False) -> list[d
     return results[:limit]
 
 
+def _load_onboarding(strict: bool) -> dict:
+    path = resolve("me/onboarding.json")
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text())
+    except (OSError, ValueError):
+        if strict:
+            raise VaultError("me/onboarding.json is damaged, so it wasn't changed. Fix or restore it first "
+                             "(jarvis_restore me/onboarding.json).")
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def onboarding() -> dict:
     try:
-        data = json.loads(resolve("me/onboarding.json").read_text())
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError, VaultError):
+        return _load_onboarding(strict=False)
+    except VaultError:
         return {}
 
 
+MERGED_LISTS = {"pending": "question", "imports": "source"}
+
+
 def update_onboarding(patch: dict) -> dict:
-    """Deep-merge a patch into me/onboarding.json (lists are replaced, not merged)."""
-    def merge(a: dict, b: dict) -> dict:
+    """Deep-merge a patch into me/onboarding.json. `pending` and `imports` are merged by question/source
+    (send `{"pending": []}` inside `replace_lists` to clear); other lists are replaced."""
+    replace = set(patch.pop("replace_lists", []) or [])
+
+    def merge(a: dict, b: dict, top: bool) -> dict:
         for k, v in b.items():
-            a[k] = merge(a.get(k, {}) if isinstance(a.get(k), dict) else {}, v) if isinstance(v, dict) else v
+            if isinstance(v, dict):
+                a[k] = merge(a.get(k, {}) if isinstance(a.get(k), dict) else {}, v, False)
+            elif top and k in MERGED_LISTS and isinstance(v, list) and k not in replace and isinstance(a.get(k), list):
+                key = MERGED_LISTS[k]
+                by = {json.dumps(x.get(key), sort_keys=True) if isinstance(x, dict) else json.dumps(x): x for x in a[k]}
+                for x in v:
+                    by[json.dumps(x.get(key), sort_keys=True) if isinstance(x, dict) else json.dumps(x)] = x
+                a[k] = list(by.values())
+            else:
+                a[k] = v
         return a
-    data = merge(onboarding(), patch)
-    path = resolve("me/onboarding.json")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n")
-    log(f"me/onboarding.json: {', '.join(patch)}", "update")
+    with _locked():
+        data = merge(_load_onboarding(strict=True), patch, True)
+        path = resolve("me/onboarding.json")
+        if path.exists():
+            _snapshot(path, "me/onboarding.json")
+        _atomic_write(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
+        _log_line(f"me/onboarding.json: {', '.join(patch)}", "update")
     return data

@@ -28,6 +28,17 @@ Security fixes target the latest source on `main`. There is no backport or respo
   paths, and validate saved role settings before selecting templates. These checks are not a sandbox
   against another process with your OS account, a hostile concurrent filesystem writer, or an agent
   that has independent shell/filesystem tools.
+- Private areas (`life/health/`, `life/finance/`, `relationships/`, `journal/`, `frameworks/declarations/`,
+  `frameworks/deal-cards/`) are enforced in code: search and recall show only page names, `jarvis_read`
+  refuses them, and `jarvis_read_private` is set to ask every time. Writes to private pages log the page
+  name only. Agents that can browse the web cannot open private pages.
+- Vault writes default to create (never overwrite), are atomic and locked, and keep the previous version
+  in `.history/` (`jarvis_restore` undoes a change). A damaged `onboarding.json` is never overwritten.
+- Scheduled jobs run without shell, web or raw file tools; they change the vault only through the Jarvis
+  tools and cannot read private areas. The finished notification is posted by launchd, not the model.
+- Jarvis folders, the vault, `~/.jarvis` and `~/.jarvis-office` are created owner-only (umask 077); existing
+  folders are tightened on every render/update. The terminal transcript log is off unless
+  `JARVIS_OFFICE_SESSION_LOG=1`.
 - `me/` changes go through proposals; raw sources cannot be overwritten; the change log is append-only
   through the vault API. Direct filesystem access has the permissions of the local account.
 - Model providers still receive the context sent to them. Keeping files locally does not mean inference

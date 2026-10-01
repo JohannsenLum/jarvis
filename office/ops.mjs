@@ -130,7 +130,7 @@ function vaultStats(vault) {
   } catch { /* none */ }
   const weekAgo = dayKey(Date.now() - 7 * 864e5);
   let proposals = 0;
-  try { proposals = (fs.readFileSync(safeFile(vault, "me/_proposals.md", [".md", ".json"]), "utf8").match(/^## /gm) || []).length; } catch { /* none */ }
+  try { proposals = (fs.readFileSync(safeFile(vault, "me/_proposals.md", [".md", ".json"]), "utf8").match(/^- \[ \]/gm) || []).length; } catch { /* none */ }
   let onboarding = null;
   try { const o = JSON.parse(fs.readFileSync(safeFile(vault, "me/onboarding.json", [".md", ".json"]), "utf8")); onboarding = { status: o.status, step: o.current_step, pending: (o.pending || []).length, connections: o.connections || {} }; } catch { /* none */ }
   let nowUpdated = null;

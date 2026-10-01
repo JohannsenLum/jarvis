@@ -83,7 +83,8 @@ In Telegram:
   1. Create a group, then Group settings → Topics → on (it becomes a supergroup with topics)
   2. Add your bot to the group and make it an admin (so it can see messages)
   3. Only people in TELEGRAM_ALLOWED_USERS can trigger Jarvis. Add colleagues' IDs there if you want
-     them to use it, and remember Jarvis never shares your private areas in groups.
+     them to use it. Jarvis never quotes your private areas (health, money, people, journal), but it
+     can mention work notes and your current focus there, so keep personal requests to your DM.
 Each topic is its own conversation automatically. Scheduled briefings stay in your private DM.
 Then: hermes gateway restart
 EOF

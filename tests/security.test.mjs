@@ -24,7 +24,7 @@ test('vault page reads reject traversal, hidden files and symlinks', t => {
   fs.writeFileSync(path.join(root, 'note.md'), 'hello');
   fs.writeFileSync(path.join(tmp, 'outside.md'), 'outside');
   fs.symlinkSync(path.join(tmp, 'outside.md'), path.join(root, 'alias.md'));
-  assert.equal(safePage(root, 'note.md'), path.join(root, 'note.md'));
+  assert.equal(safePage(root, 'note.md'), fs.realpathSync(path.join(root, 'note.md')));   // macOS: /var is /private/var
   for (const rel of ['../outside.md', 'alias.md', '.hidden.md', '/outside.md', 'note.md/../note.md', '']) {
     assert.throws(() => safePage(root, rel));
   }

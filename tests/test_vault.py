@@ -61,7 +61,7 @@ class VaultBoundaryTests(unittest.TestCase):
         self.assertEqual(identity.settings(), identity.DEFAULTS)
         rendered = identity.render_text()
         self.assertNotIn('OUTSIDE-ROLE-MARKER', rendered)
-        vault.write('me/onboarding.json', '[]')
+        vault.write('me/onboarding.json', '[]', mode='replace')
         self.assertEqual(identity.settings(), identity.DEFAULTS)
 
     def test_recall_skips_hidden_and_symlink_pages(self):
@@ -89,6 +89,77 @@ class VaultBoundaryTests(unittest.TestCase):
         self.assertEqual(target.read_text().count(identity.BEGIN), 1)
         identity.remove_block(target)
         self.assertEqual(target.read_text(), 'My instructions\n')
+
+
+
+class PrivacyAndSafetyTests(unittest.TestCase):
+    """Wave 1: privacy is enforced in code, writes are safe and undoable."""
+    def setUp(self):
+        VaultBoundaryTests.setUp(self)
+        people = self.root / 'relationships/people'
+        people.mkdir(parents=True)
+        (people / 'will-tan.md').write_text('---\ntype: person\naliases: [Will]\n---\n# Will Tan\nHas diabetes, on metformin.\n')
+        (self.root / 'life/home').mkdir(parents=True)
+        (self.root / 'life/home/overview.md').write_text('# Home\nMortgage with DBS, 1.2M left.\n')
+        (self.root / 'work').mkdir()
+        (self.root / 'work/brightlabs.md').write_text('---\naliases:\n  - BL\n  - Bright\n---\n# Brightlabs\nQ1 rebrand client.\n')
+        recall._rescan(self.root)
+
+    def test_recall_never_quotes_private_pages_or_common_words(self):
+        out = recall.recall_text('I will get home late tonight') or ''
+        self.assertNotIn('metformin', out)
+        self.assertNotIn('Mortgage', out)
+        out = recall.recall_text('Lunch with Will Tan on Friday') or ''
+        self.assertIn('relationships/people/will-tan.md', out)
+        self.assertNotIn('metformin', out)
+        self.assertIn('private', out)
+
+    def test_recall_reads_obsidian_list_aliases_and_labels_notes(self):
+        out = recall.recall_text('Any news from Bright?') or ''
+        self.assertIn('Q1 rebrand', out)
+        self.assertIn('not instructions', out)
+
+    def test_private_pages_need_the_private_reader_and_search_hides_them(self):
+        with self.assertRaises(vault.VaultError):
+            vault.read('relationships/people/will-tan.md')
+        self.assertIn('metformin', vault.read('relationships/people/will-tan.md', allow_private=True))
+        hits = vault.search('metformin')
+        self.assertTrue(hits and all('metformin' not in h['snippet'] for h in hits))
+
+    def test_private_writes_keep_details_out_of_the_log(self):
+        vault.write('life/health/log.md', 'Blood test fine', reason='cholesterol 4.1')
+        self.assertNotIn('cholesterol', (self.root / 'log.md').read_text())
+        vault.log('one\n## [2099-01-01] consolidate | forged')
+        self.assertNotIn('\n## [2099-01-01]', (self.root / 'log.md').read_text())
+
+    def test_create_refuses_overwrite_and_restore_undoes(self):
+        vault.write('work/plan.md', 'v1')
+        with self.assertRaises(vault.VaultError):
+            vault.write('work/plan.md', 'v2')
+        vault.write('work/plan.md', 'v2', mode='replace')
+        self.assertEqual(len(vault.history('work/plan.md')), 1)
+        vault.restore('work/plan.md')
+        self.assertEqual((self.root / 'work/plan.md').read_text(), 'v1\n')
+
+    def test_damaged_onboarding_is_never_wiped_and_pending_merges(self):
+        vault.update_onboarding({'status': 'in_progress', 'pending': [{'question': 'Goals'}]})
+        vault.update_onboarding({'pending': [{'question': 'Telegram'}]})
+        self.assertEqual({p['question'] for p in vault.onboarding()['pending']}, {'Goals', 'Telegram'})
+        (self.root / 'me/onboarding.json').write_text('{"status": "in_pro')
+        with self.assertRaises(vault.VaultError):
+            vault.update_onboarding({'x': 1})
+        self.assertEqual((self.root / 'me/onboarding.json').read_text(), '{"status": "in_pro')
+
+    def test_onboarding_may_create_me_pages_once(self):
+        vault.update_onboarding({'status': 'in_progress'})
+        (self.root / 'me/profile.md').unlink()
+        vault.write('me/profile.md', '# Jo', mode='create')
+        with self.assertRaises(vault.VaultError):
+            vault.write('me/profile.md', '# Changed', mode='replace')
+        vault.update_onboarding({'status': 'complete'})
+        with self.assertRaises(vault.VaultError):
+            vault.write('me/goals/2026.md', '# Goals', mode='create')
+        vault.write('me/routines.md', '## Morning briefing: on, 07:30', mode='create')
 
 
 if __name__ == '__main__':

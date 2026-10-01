@@ -115,6 +115,7 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   console.log(`\n${gold(bold("  JARVIS"))}  ${dim("your own personal assistant, in a folder you own")}\n`);
 
+  process.umask(0o077);   // the folder holds a private vault: owner-only files and folders
   if (!which("python3")) { console.error("  Python 3 is required (it ships with macOS developer tools: xcode-select --install)."); process.exit(1); }
   if (!which("git")) { console.error("  git is required (xcode-select --install)."); process.exit(1); }
 

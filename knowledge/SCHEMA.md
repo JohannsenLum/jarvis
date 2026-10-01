@@ -49,7 +49,8 @@ Storage rules per area live in `me/onboarding.json` → `privacy` (`local | encr
 - `local`: never synced, never sent to third-party tools, never included in cloud backups.
 - `encrypted`: may be backed up only through an encrypted backup.
 - `cloud`: may sync with the user's cloud storage (for example iCloud Drive).
-Default for `life/health/`, `life/finance/`, `relationships/`, `journal/` and `frameworks/declarations/` is `local`.
+Private areas: `life/health/`, `life/finance/`, `relationships/`, `journal/`, `frameworks/declarations/` and `frameworks/deal-cards/`. Jarvis's search and recall show only their page names; opening one needs the
+user's OK every time. Default storage for them is `local`.
 
 ## Operations
 - **Ingest** (`brain-ingest` skill): new source → `raw/` → update or create wiki pages → `index.md` → `log.md`.

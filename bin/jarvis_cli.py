@@ -219,6 +219,7 @@ def render_instance(quiet: bool = False) -> None:
     purpose and refreshed on every render, so moving the folder only needs `jarvis render`.
     """
     root = config.instance_root()
+    lock_down(root, root / "knowledge", root / ".jarvis", config.home())   # existing folders too, on every render/update
     text = identity.render().read_text()
     identity.write_block(root / "AGENTS.md", text)            # Codex, Grok Build, OpenClaw, DeepSeek, Cursor…
     identity.write_block(root / "CLAUDE.md", "@AGENTS.md")     # Claude Code
@@ -230,8 +231,14 @@ def render_instance(quiet: bool = False) -> None:
     json_merge(root / ".mcp.json", lambda d: d.setdefault("mcpServers", {}).__setitem__("jarvis", mcp_entry()))
     claude_hooks(True, root / ".claude" / "settings.json")
     # Jarvis's own tools don't need a click each time (they enforce the vault rules themselves)
-    json_merge(root / ".claude" / "settings.json", lambda d: d.setdefault("permissions", {}).__setitem__(
-        "allow", sorted(set(d.get("permissions", {}).get("allow", [])) | {"mcp__jarvis"})))
+    # Jarvis's own tools don't need a click each time, except reading private areas, which always asks.
+    def allow_tools(d: dict) -> None:
+        perms = d.setdefault("permissions", {})
+        allow = [x for x in perms.get("allow", []) if x != "mcp__jarvis" and not x.startswith("mcp__jarvis__")]
+        perms["allow"] = sorted(set(allow) | {f"mcp__jarvis__{t}" for t in JARVIS_AUTO_TOOLS})
+        ask = [x for x in perms.get("ask", []) if x != "mcp__jarvis__jarvis_read_private"]
+        perms["ask"] = sorted(set(ask) | {"mcp__jarvis__jarvis_read_private"})
+    json_merge(root / ".claude" / "settings.json", allow_tools)
     args = ", ".join(json.dumps(a) for a in MCP_CMD[1:])
     text_block(root / ".codex" / "config.toml", f'[mcp_servers.jarvis]\ncommand = {json.dumps(MCP_CMD[0])}\nargs = [{args}]')
     set_mcp_json(root / ".gemini" / "settings.json")
@@ -435,6 +442,11 @@ def update(source: str) -> None:
         except (OSError, ValueError):
             manifest = {"parts": ["core", "mcp", "hooks", "bin", "agents", "frameworks", "adapters", "office",
                                   "deps.env", "README.md"], "removed": ["hermes", "setup.sh"]}
+        name_ok = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+        bad = [x for x in list(manifest.get("parts", [])) + list(manifest.get("removed", []))
+               if not isinstance(x, str) or not name_ok.match(x) or x in ("skills", "knowledge", "logs", "config.json", "AGENTS.md")]
+        if bad:
+            raise SystemExit(f"Refusing this update: its file list names unexpected paths ({', '.join(map(str, bad))}).")
         for old in manifest.get("removed", []):
             p_old = REPO / old
             if p_old.is_dir():
@@ -474,6 +486,8 @@ def export_skills(out: Path) -> None:
 
 
 OFFICE_DIR = Path.home() / ".jarvis-office"
+JARVIS_AUTO_TOOLS = ("jarvis_now", "jarvis_recall", "jarvis_search", "jarvis_read", "jarvis_write", "jarvis_propose", "jarvis_log",
+                     "jarvis_onboarding", "jarvis_settings", "jarvis_frameworks", "jarvis_status", "jarvis_history", "jarvis_restore")
 
 
 def _node() -> str | None:
@@ -538,6 +552,7 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     if not node:
         raise SystemExit("The office needs Node.js 18+ (https://nodejs.org).")
     OFFICE_DIR.mkdir(parents=True, exist_ok=True)
+    lock_down(OFFICE_DIR, *OFFICE_DIR.glob("*.log"))
     if approvals:
         office_hook(True, root / ".claude" / "settings.json", node)
     # Always run the current dashboard code: restart a server left over from before an update.
@@ -631,7 +646,8 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
         subprocess.run([tm, "new-session", "-d", "-s", "jarvis", "-c", str(root), shell, "-lc", script], check=True)
         # If the session ever dies, keep the last screen and a log so you can see why.
         subprocess.run([tm, "set-option", "-t", "jarvis", "remain-on-exit", "on"], capture_output=True)
-        subprocess.run([tm, "pipe-pane", "-t", "jarvis", "-o", f"cat >> {shlex.quote(str(OFFICE_DIR / 'session.log'))}"], capture_output=True)
+        if os.environ.get("JARVIS_OFFICE_SESSION_LOG") == "1":          # opt-in: it's a full copy of the chat
+            subprocess.run([tm, "pipe-pane", "-t", "jarvis", "-o", f"umask 077; cat >> {shlex.quote(str(OFFICE_DIR / 'session.log'))}"], capture_output=True)
         import time
         time.sleep(1.5)
         dead = subprocess.run([tm, "display-message", "-p", "-t", "jarvis", "#{pane_dead} #{pane_dead_status}"],
@@ -640,7 +656,7 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
             screen = subprocess.run([tm, "capture-pane", "-p", "-t", "jarvis"], capture_output=True, text=True).stdout.strip()
             subprocess.run([tm, "kill-session", "-t", "jarvis"], capture_output=True)
             raise SystemExit(f"! Claude's session closed straight away (exit {dead[1] if len(dead) > 1 else '?'}). It showed:\n{screen[-1500:]}\n"
-                             f"  Full log: {OFFICE_DIR / 'session.log'}")
+                             + (f"  Full log: {OFFICE_DIR / 'session.log'}" if (OFFICE_DIR / "session.log").exists() else ""))
         print("✓ Started Claude in this folder (tmux session 'jarvis')" + (f" with {' '.join(claude_args)}." if claude_args else "."))
     if os.environ.get("TMUX"):
         current = subprocess.run([tm, "display-message", "-p", "#S"], capture_output=True, text=True).stdout.strip()
@@ -656,7 +672,18 @@ def office(action: str, port: int, approvals: bool, attach: bool, claude_args: l
     print(f"Chat in the dashboard, or open the terminal session any time: {tm} attach -t jarvis   (leave with Ctrl-b then d)")
 
 
+def lock_down(*paths: Path) -> None:
+    """Owner-only: the vault holds health, money and journal notes, and this Mac may have other accounts."""
+    for p in paths:
+        try:
+            if p.exists():
+                os.chmod(p, 0o700 if p.is_dir() else 0o600)
+        except OSError:
+            pass
+
+
 def main() -> None:
+    os.umask(0o077)                                            # new files: owner-only
     ap = argparse.ArgumentParser(prog="jarvis", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("install", help="plug Jarvis into harnesses")
@@ -695,6 +722,9 @@ def main() -> None:
         argv, passthrough = argv[:i], argv[i + 1:]
     a = ap.parse_args(argv)
 
+    if a.cmd == "install" and a.glob:
+        print("Note: --global makes every Claude Code session Jarvis, including client or untrusted projects: your\n"
+              "now.md and vault notes are added to those chats too. Leave it off to keep Jarvis in its own folder.")
     if a.cmd == "install":
         names = [h for h in HARNESSES if DETECT[h]()] if a.harness == ["all"] else a.harness
         if config.INSTANCE and not a.glob and {"claude-code", "codex", "gemini"} & set(names):
