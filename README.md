@@ -87,12 +87,43 @@ try. Anything you skip is saved and offered again later ("finish onboarding").
 - **Short-term memory:** `knowledge/now.md` (this week's focus, open loops, next 7 days) is read at the
   start of every conversation and rewritten every night.
 - **Recall:** mention a person, client or project and Jarvis pulls in its page automatically.
-- **Filing:** tell it something worth keeping and it files it on the right page, logging every change in
-  `log.md`. Your own pages in `me/` are never edited without a yes (changes are proposed in
-  `me/_proposals.md`).
+- **Filing:** tell it something worth keeping and it files it on the right page (inside the right
+  client's space for work), logging every change in `log.md`. Your own pages in `me/` are never edited
+  without a yes (changes are proposed in `me/_proposals.md`).
+- **Undo:** every change keeps the previous version. Say "undo that" and Jarvis restores it
+  (`jarvis_restore`). Creating a page never overwrites an existing one.
 - **Routines:** a morning briefing, a weekly review, and a nightly memory refresh and tidy-up.
 - **Frameworks:** proven ways of thinking Jarvis runs with you (below).
 - **Sub-agents:** a librarian, researcher, critic and creative it hands work to (below).
+
+## Knowledge base: spaces and dev folders
+
+Each company and each client is its own **space**: a self-contained knowledge base in its folder.
+
+```
+knowledge/work/twiss/                    company space
+  SPACE.md  overview.md  index.md  log.md  raw/
+  clients/brightlabs/                    client space
+    SPACE.md      what it is, and its rules
+    overview.md   contacts/  projects/  meetings/  decisions/ …
+    raw/          Brightlabs' original files (briefs, contracts, transcripts), never edited
+    log.md        every change inside Brightlabs, newest last
+    index.md      rebuilt from its pages on every change
+    dev/          code: each project its own git repo, outside the knowledge base
+      website/    (git repo)
+```
+
+- **Everything about a client stays in its folder**, including the sources the facts came from, so the
+  folder could one day be shared on its own.
+- **No links out.** Pages in a space link only inside it; Jarvis warns when a page links elsewhere.
+  Work contacts live in the space's `contacts/`, never in your private `relationships/`.
+- **Leak check:** "is Brightlabs ok to share?" runs `jarvis_space check`, which lists links leaving the
+  folder and mentions of your personal contacts.
+- **Code in `dev/`:** "start a website repo for Brightlabs" creates `dev/website/` with its own git repo
+  (or `git clone` inside `dev/`). Jarvis never indexes, searches, syncs or shares `dev/`; the vault tools
+  don't touch it; your Jarvis folder's git ignores it; Obsidian hides it.
+- Onboarding makes your company and each client a space. For existing folders, ask "make Twiss and each
+  client its own space" (it only adds files). Search can stay inside one client.
 
 ## Office dashboard
 
@@ -183,6 +214,9 @@ The dashboard server binds to `127.0.0.1` and uses a per-run token. Remote Contr
 feature; the local dashboard itself is not exposed to the network. Close any open dashboard tabs when
 finished: stopping the server does not close browser tabs or stop an already-loaded animation.
 
+Approval cards show the full request (never shortened), and typing in the dashboard is refused while a
+permission prompt or question is open, so your Enter can't accidentally answer it.
+
 Claude flags can be passed after `--`. `--dangerously-skip-permissions` disables Claude's permission
 prompts and therefore its dashboard approval cards; quick-command confirmation remains a separate
 interface control.
@@ -199,7 +233,25 @@ actually use it:
 | Hermes | Hermes cron | Ask Jarvis, or `hermes cron list` |
 
 What each routine covers lives in `knowledge/me/routines.md`, which you can edit in Obsidian or change by
-chat ("move my briefing to 8", "stop the weekly review", "add email highlights"). Scheduled runs use the
+chat ("move my briefing to 8", "stop the weekly review", "add email highlights"):
+
+```
+## Morning briefing: on, 07:30, weekdays
+Include: calendar and top 3, open loops, people to reach out to
+## Weekly review: on, Sunday 18:00
+## Nightly memory refresh: on, 01:30
+## Nightly tidy-up: off
+```
+
+```bash
+jarvis schedule sync      # make the schedule match me/routines.md (installs what's on, removes what's off)
+jarvis schedule status    # times, and when each routine last ran and whether it failed
+jarvis schedule run morning-briefing   # run one now, to test
+```
+
+Times like `7:30am` or `6pm`, days like `weekdays`, `weekends`, `Sunday`, `Mon-Fri`. Scheduled jobs run
+without shell, web or raw file access and can't open private areas; they change the vault only through
+Jarvis's tools. Scheduled runs use the
 lighter model (Sonnet 5 or GPT-6 Luna). Routines only run while the Mac is awake; a missed one runs
 when it wakes (in the desktop app: when the app is next open).
 
@@ -323,11 +375,31 @@ Hermes also brings its own dashboard (`hermes dashboard`: usage, sessions, cron)
 
 ## Privacy
 
-- The vault is never shared. `life/health`, `life/finance`, `relationships/`, `journal/` and
-  `frameworks/declarations/` default to local-only, and Jarvis never pastes them into other tools or
-  group chats.
+- **Private areas are enforced in code:** `life/health/`, `life/finance/`, `relationships/`, `journal/`,
+  `frameworks/declarations/` and `frameworks/deal-cards/`. Search and recall only name their pages, never
+  quote them; opening one needs your OK every time (`jarvis_read_private`); the researcher and critic
+  (which browse the web) can't open them; the change log names private pages without details.
+- **Owner-only files:** your Jarvis folder, vault and Jarvis's settings are readable by your macOS account
+  only, even on a Mac with other accounts.
+- The vault is never shared. Client spaces are built so one could be shared on its own later, without the
+  rest (see Knowledge base).
 - Keys and tokens live in env files with mode 600 (for example `~/.hermes/.env`), never in the vault or chat.
-- Content from the web, email or documents is treated as information, not instructions.
+- Content from the web, email or documents is treated as information, not instructions; notes Jarvis adds
+  to a chat are labelled that way too.
+- More detail: [SECURITY.md](SECURITY.md).
+
+## Contributing
+
+Every change goes through an issue and a pull request:
+
+1. **Issue first:** describe the problem, the scope and how we'll know it's done (templates in
+   `.github/ISSUE_TEMPLATE/`).
+2. **A branch per issue:** `feat/<issue>-<slug>`, `fix/<issue>-<slug>` or `docs/<issue>-<slug>`.
+3. **Focused commits**, with tests for behaviour changes:
+   `python3 -m unittest discover -s tests -p 'test_*.py'` and `node --test tests/*.mjs`.
+4. **Update this README** for anything a user would notice.
+5. **Open a PR** that says `Closes #<issue>`, what changed, how it was tested and any risks (the PR
+   template asks for each). CI must pass before merging.
 
 ## Development and releases
 
@@ -359,4 +431,6 @@ office/          the office dashboard (Node, no dependencies)
 bin/             jarvis CLI, create-jarvis wizard, scheduler, helpers
 knowledge/       vault template (SCHEMA.md, page templates)
 .claude-plugin/  Claude Code plugin manifests
+tests/           Python and Node tests (vault, privacy, spaces, schedule, dashboard security, packaging)
+.github/         CI, CodeQL, releases, issue and PR templates
 ```
