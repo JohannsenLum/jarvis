@@ -217,7 +217,8 @@ def write(rel: str, content: str, mode: str = "create", reason: str = "") -> str
         if space and rel == f"{space}/{SPACE_FILE}" and exists and mode != "replace":
             raise VaultError(f"{rel} describes the space. Read it, then replace it if it must change.")
         if policy.startswith("me/") and policy not in ME_ALWAYS_WRITABLE + ("me/_proposals.md",):
-            if not (ME_ONBOARDING_PAGES.match(policy) and mode == "create" and not exists and _onboarding_active()):
+            # Only the exact lowercase path: on a case-sensitive disk "ME/profile.md" is a different, new file.
+            if not (rel == policy and ME_ONBOARDING_PAGES.match(policy) and mode == "create" and not exists and _onboarding_active()):
                 raise VaultError("me/ belongs to the user. Use jarvis_propose to suggest the change instead"
                                  " (onboarding may only create its pages, once).")
         if policy in ("log.md", "me/_proposals.md") and mode != "append":

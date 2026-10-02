@@ -33,6 +33,10 @@ class VaultBoundaryTests(unittest.TestCase):
             self.assertEqual((self.root / name).read_text(), 'original\n')
         with self.assertRaises(vault.VaultError):
             vault.write('ME/profile.md', 'changed')
+        # A case variant of an onboarding page is refused even when it doesn't exist (case-sensitive disks).
+        for alias in ['ME/goals/2026.md', 'Me/principles.md']:
+            with self.subTest(alias=alias), self.assertRaises(vault.VaultError):
+                vault.write(alias, 'changed', mode='create')
 
     def test_valid_writes_log_and_raw_create(self):
         vault.write('work/project.md', 'First', mode='create', reason='test')

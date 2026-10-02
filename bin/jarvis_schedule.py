@@ -197,7 +197,8 @@ def workdir() -> Path:
 
 
 def headless_command(runner: str, text: str, notify: str = "", binary: str = "") -> str:
-    done = f" && osascript -e {shlex.quote(f'display notification {json.dumps(notify)} with title \"Jarvis\"')}" if notify else ""
+    script = "display notification " + json.dumps(notify) + ' with title "Jarvis"'   # no nested f-string: Python 3.11
+    done = " && osascript -e " + shlex.quote(script) if notify else ""
     if runner == "launchd-claude":
         exe = shlex.quote(binary or "claude")
         return (f"{exe} -p {shlex.quote(text)} --model claude-sonnet-5 --permission-mode default "
